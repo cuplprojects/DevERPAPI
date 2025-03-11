@@ -6,7 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.Text;
 using ERPAPI.Data;
-using ERPAPI.Service.ProjectTransaction;
+
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -26,8 +26,7 @@ builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IProjectProcessService, ProjectProcessService>();
 builder.Services.AddScoped<IQuantitySheetService, QuantitySheetService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
-builder.Services.AddScoped<IProjectCompletionService, ProjectCompletionService>();
-builder.Services.AddScoped<IProjectTransactionService, ProjectTransactionService>();
+
 
 
 builder.Services.AddControllers();
