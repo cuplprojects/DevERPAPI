@@ -18,7 +18,6 @@ namespace ERPAPI.Model
         public DateTime Date { get; set; }
         public string? QuantityThreshold { get; set; } 
 
-
     }
 
 
