@@ -154,6 +154,10 @@ namespace ERPAPI.Controllers
                 var transactions = await _context.Set<Transaction>()
                     .Where(t => t.ProjectId == projectId)
                     .ToListAsync();
+                var eventLogs = await _context.EventLogs
+     .Where(e => transactions.Select(t => t.TransactionId).Contains(e.TransactionId.Value)) // Remove e.Event from Where clause
+     .Select(e => new { e.TransactionId, e.LoggedAT, e.EventID }) // Only select TransactionId and LoggedAT
+     .ToListAsync();
                 var allMachines = await _context.Set<Machine>().ToListAsync();
                 var allZones = await _context.Set<Zone>().ToListAsync();
                 var allTeams = await _context.Set<Team>().ToListAsync();
@@ -162,6 +166,8 @@ namespace ERPAPI.Controllers
                     .Where(d => d.ProjectId == projectId && d.LotNo == lotNo)
                     .ToListAsync(); // Fetch dispatch data
 
+                var projectprocess = await _context.ProjectProcesses.Where(p => p.ProjectId == projectId).OrderBy(p => p.Sequence).FirstOrDefaultAsync();
+                Console.WriteLine(projectprocess.Sequence);
                 // Map QuantitySheet data with required details
                 var result = quantitySheets.Select(q =>
                 {
@@ -169,6 +175,18 @@ namespace ERPAPI.Controllers
                     var relatedTransactions = transactions
                         .Where(t => t.QuantitysheetId == q.QuantitySheetId)
                         .ToList();
+
+                    var startLogs = relatedTransactions.Select(t => eventLogs
+    .Where(e => e.TransactionId == t.TransactionId)
+    .OrderBy(e => e.EventID)
+    .Select(e => e.LoggedAT)
+    .FirstOrDefault()).Min();
+
+                    var endLogs = relatedTransactions.Select(t => eventLogs
+                        .Where(e => e.TransactionId == t.TransactionId)
+                        .OrderByDescending(e => e.EventID)
+                        .Select(e => e.LoggedAT)
+                        .FirstOrDefault()).Max();
 
                     string catchStatus;
                     if (!relatedTransactions.Any())
@@ -210,11 +228,11 @@ namespace ERPAPI.Controllers
                     return new
                     {
                         q.CatchNo,
-                        q.Paper,
+                        q.PaperTitle,
                         q.ExamDate,
                         q.ExamTime,
-                        q.Course,
-                        q.Subject,
+                        q.CourseId,
+                        q.SubjectId,
                         q.InnerEnvelope,
                         q.OuterEnvelope,
                         q.LotNo,
@@ -228,12 +246,15 @@ namespace ERPAPI.Controllers
                                 .ToList()
                             : null,
                         CatchStatus = catchStatus, // Updated logic
+                        StartTime = startLogs,
+                        EndTime = endLogs,
                         TwelvethProcess = relatedTransactions.Any(t => t.ProcessId == 12),
                         CurrentProcessName = lastTransactionProcessName,
                         DispatchDate = dispatchDate, // Added Dispatch Date
                                                      // Grouped Transaction Data
                         TransactionData = new
                         {
+
                             ZoneDescriptions = relatedTransactions
                                 .Select(t => t.ZoneId)
                                 .Distinct()
@@ -274,6 +295,7 @@ namespace ERPAPI.Controllers
 
 
 
+
         [HttpGet("GetCatchNoByProject/{projectId}")]
         public async Task<IActionResult> GetCatchNoByProject(int projectId)
         {
@@ -309,66 +331,64 @@ namespace ERPAPI.Controllers
             }
         }
 
-        [HttpGet("search")]
-        public async Task<IActionResult> SearchQuantitySheet(
-    [FromQuery] string query,
-    [FromQuery] int page = 1,
-    [FromQuery] int pageSize = 5,
-    [FromQuery] int? groupId = null,
-    [FromQuery] int? projectId = null)
-        {
-            if (string.IsNullOrWhiteSpace(query))
-            {
-                return BadRequest("Search query cannot be empty.");
-            }
+        /* [HttpGet("search")]
+         public async Task<IActionResult> SearchQuantitySheet(
+     [FromQuery] string query,
+     [FromQuery] int page = 1,
+     [FromQuery] int pageSize = 5,
+     [FromQuery] int? groupId = null,
+     [FromQuery] int? projectId = null)
+         {
+             if (string.IsNullOrWhiteSpace(query))
+             {
+                 return BadRequest("Search query cannot be empty.");
+             }
 
-            var queryable = _context.QuantitySheets.AsQueryable();
+             var queryable = _context.QuantitySheets.AsQueryable();
 
-            if (groupId.HasValue)
-            {
-                var projectIdsInGroup = _context.Projects
-                    .Where(p => p.GroupId == groupId)
-                    .Select(p => p.ProjectId);
+             if (groupId.HasValue)
+             {
+                 var projectIdsInGroup = _context.Projects
+                     .Where(p => p.GroupId == groupId)
+                     .Select(p => p.ProjectId);
 
-                queryable = queryable.Where(q => projectIdsInGroup.Contains(q.ProjectId));
-            }
+                 queryable = queryable.Where(q => projectIdsInGroup.Contains(q.ProjectId));
+             }
 
-            if (projectId.HasValue)
-            {
-                queryable = queryable.Where(q => q.ProjectId == projectId);
-            }
+             if (projectId.HasValue)
+             {
+                 queryable = queryable.Where(q => q.ProjectId == projectId);
+             }
 
-            var totalRecords = await queryable
-                .CountAsync(q => q.CatchNo.StartsWith(query) ||
-                                q.Subject.StartsWith(query) ||
-                                q.Course.StartsWith(query) ||
-                                (q.Paper != null && q.Paper.StartsWith(query)));
+             var totalRecords = await queryable
+                 .CountAsync(q => q.CatchNo.StartsWith(query) ||
+                                 q.Subject.StartsWith(query) ||
+                                 q.Course.StartsWith(query) ||
+                                 (q.PaperTitle != null && q.PaperTitle.StartsWith(query)));
 
-            var results = await queryable
-                .Where(q => q.CatchNo.StartsWith(query) ||
-                            q.Subject.StartsWith(query) ||
-                            q.Course.StartsWith(query) ||
-                            (q.Paper != null && q.Paper.StartsWith(query)))
-                .Select(q => new
-                {
-                    q.CatchNo,
-                    //ProjectName = _context.Projects.Where(p => p.ProjectId == q.ProjectId).Select(p => p.Name).FirstOrDefault(),
-                    //GroupName = _context.Groups.Where(g => g.Id == _context.Projects.Where(p => p.ProjectId == q.ProjectId).Select(p => p.GroupId).FirstOrDefault()).Select(g => g.Name).FirstOrDefault(),
-                    MatchedColumn = q.CatchNo.StartsWith(query) ? "CatchNo" :
-                                    q.Subject.StartsWith(query) ? "Subject" :
-                                    q.Course.StartsWith(query) ? "Course" : "Paper",
-                    MatchedValue = q.CatchNo.StartsWith(query) ? q.CatchNo :
-                                   q.Subject.StartsWith(query) ? q.Subject :
-                                   q.Course.StartsWith(query) ? q.Course : q.Paper,
-                    q.ProjectId,
-                    q.LotNo
-                })
-                .Skip((page - 1) * pageSize) // Skip records based on the page number
-                .Take(pageSize) // Limit the number of results per page
-                .ToListAsync();
+             var results = await queryable
+                 .Where(q => q.CatchNo.StartsWith(query) ||
+                             q.Subject.StartsWith(query) ||
+                             q.Course.StartsWith(query) ||
+                             (q.PaperTitle != null && q.PaperTitle.StartsWith(query)))
+                 .Select(q => new
+                 {
+                     q.CatchNo,
+                     MatchedColumn = q.CatchNo.StartsWith(query) ? "CatchNo" :
+                                     q.Subject.StartsWith(query) ? "Subject" :
+                                     q.Course.StartsWith(query) ? "Course" : "Paper",
+                     MatchedValue = q.CatchNo.StartsWith(query) ? q.CatchNo :
+                                    q.Subject.StartsWith(query) ? q.Subject :
+                                    q.Course.StartsWith(query) ? q.Course : q.Paper,
+                     q.ProjectId,
+                     q.LotNo
+                 })
+                 .Skip((page - 1) * pageSize) // Skip records based on the page number
+                 .Take(pageSize) // Limit the number of results per page
+                 .ToListAsync();
 
-            return Ok(new { TotalRecords = totalRecords, Results = results });
-        }
+             return Ok(new { TotalRecords = totalRecords, Results = results });
+         }*/
 
 
 
@@ -448,11 +468,12 @@ namespace ERPAPI.Controllers
                     return new
                     {
                         q.CatchNo,
-                        q.Paper,
+                        q.PaperTitle,
+                        q.PaperNumber,
                         q.ExamDate,
                         q.ExamTime,
-                        q.Course,
-                        q.Subject,
+                        q.CourseId,
+                        q.SubjectId,
                         q.InnerEnvelope,
                         q.OuterEnvelope,
                         q.LotNo,
@@ -511,133 +532,6 @@ namespace ERPAPI.Controllers
         }
 
 
-        /* [HttpGet("process-wise/{catchNo}")]
-         public async Task<IActionResult> GetProcessWiseData(string catchNo)
-         {
-             var quantitySheet = await _context.QuantitySheets
-                 .Where(q => q.CatchNo == catchNo)
-                 .Select(q => new { q.QuantitySheetId, q.ProcessId, q.ProjectId })
-                 .FirstOrDefaultAsync();
-
-             if (quantitySheet == null)
-             {
-                 return NotFound("No data found for the given CatchNo.");
-             }
-
-             var projectProcesses = await _context.ProjectProcesses
-                 .Where(pp => pp.ProjectId == quantitySheet.ProjectId)
-                 .ToListAsync();
-
-             var transactions = await _context.Transaction
-                 .Where(t => t.QuantitysheetId == quantitySheet.QuantitySheetId)
-                 .ToListAsync();
-
-
-             var teamIds = transactions.SelectMany(t => t.TeamId).Distinct().ToList();
-             var teams = await _context.Teams
-                 .Where(team => teamIds.Contains(team.TeamId))
-                 .ToListAsync();
-             var userIds = teams.SelectMany(t => t.UserIds).Distinct().ToList();
-             var users = await _context.Users
-                 .Where(u => userIds.Contains(u.UserId))
-                 .ToListAsync();
-             var roles = await _context.Roles
-                 .ToListAsync();
-             var machines = await _context.Machine
-                 .ToListAsync();
-
-             var processWiseData = projectProcesses.ToDictionary(pp => pp.ProcessId, pp => transactions
-                 .Where(t => t.ProcessId == pp.ProcessId)
-                 .Select(t => new
-                 {
-                     ZoneDescription = _context.Zone.Where(z => z.ZoneId == t.ZoneId).Select(z => z.ZoneDescription).FirstOrDefault(),
-                     TeamDetails = teams
-                                  .Where(team => t.TeamId.Contains(team.TeamId))
-                                  .Select(team => new
-                                  {
-                                      team.TeamName,
-                                      UserDetails = users.Where(u => team.UserIds.Contains(u.UserId))
-                                          .Select(u => new
-                                          {
-                                              FullName = u.FirstName + " " + u.LastName,
-                                              RoleName = roles.Where(r => r.RoleId == u.RoleId).Select(r => r.RoleName).FirstOrDefault()
-                                          })
-                                          .ToList()
-                                  })
-                                  .ToList(),
-                     Users = _context.Users.Where(user => pp.UserId.Contains(user.UserId)).Select(u => new
-                     {
-                         FullName = u.FirstName + " " + u.LastName,
-                         RoleID = u.RoleId
-                     }).ToList(),
-                     t.Status,
-                     MachineName = machines.Where(m => m.MachineId == t.MachineId).Select(m => m.MachineName).FirstOrDefault()
-                 }).ToList());
-
-             return Ok(processWiseData);
-         }
- */
-
-        /*[HttpGet("process-wise/{catchNo}")]
-        public async Task<IActionResult> GetProcessWiseData(string catchNo)
-        {
-            var quantitySheet = await _context.QuantitySheets
-                .Where(q => q.CatchNo == catchNo)
-                .Select(q => new { q.QuantitySheetId, q.ProcessId, q.ProjectId })
-                .FirstOrDefaultAsync();
-
-            if (quantitySheet == null)
-            {
-                return NotFound("No data found for the given CatchNo.");
-            }
-
-            var projectProcesses = await _context.ProjectProcesses
-                .Where(pp => pp.ProjectId == quantitySheet.ProjectId)
-                .ToListAsync();
-
-            var transactions = await _context.Transaction
-                .Where(t => t.QuantitysheetId == quantitySheet.QuantitySheetId)
-                .ToListAsync();
-
-            var eventLogs = await _context.EventLogs
-                .Where(e => transactions.Select(t => t.TransactionId).Contains(e.TransactionId.Value) && e.Event == "Status updated")
-                .ToListAsync();
-
-            var processWiseData = projectProcesses.ToDictionary(pp => pp.ProcessId, pp => transactions
-                .Where(t => t.ProcessId == pp.ProcessId)
-                .Select(t => new
-                {
-                   
-                    ZoneDescription = _context.Zone.Where(z => z.ZoneId == t.ZoneId).Select(z => z.ZoneDescription).FirstOrDefault(),
-                    TeamMembers = _context.Users
-                        .Where(u => t.TeamId.Contains(u.UserId))
-                        .Select(u => new
-                        {
-                            FullName = u.FirstName + " " + u.LastName
-                        }).ToList(),
-                    Supervisor = _context.Users
-                        .Where(user => pp.UserId.Contains(user.UserId) && user.RoleId == 5)
-                        .Select(u => new
-                        {
-                            FullName = u.FirstName + " " + u.LastName
-                        }).ToList(),
-                    t.Status,
-                    MachineName = _context.Machine.Where(m => m.MachineId == t.MachineId).Select(m => m.MachineName).FirstOrDefault(),
-                    StartTime = eventLogs
-                        .Where(e => e.TransactionId == t.TransactionId && e.Event == "Status updated")
-                        .OrderBy(e => e.LoggedAT)
-                        .Select(e => (DateTime?)e.LoggedAT)
-                        .FirstOrDefault(),
-                    EndTime = eventLogs
-                        .Where(e => e.TransactionId == t.TransactionId && e.Event == "Status updated")
-                        .OrderByDescending(e => e.LoggedAT)
-                        .Select(e => (DateTime?)e.LoggedAT)
-                        .FirstOrDefault()
-                }).ToList());
-
-            return Ok(processWiseData);
-        }
-*/
 
         [HttpGet("process-wise/{catchNo}")]
         public async Task<IActionResult> GetProcessWiseData(string catchNo)
@@ -703,11 +597,7 @@ namespace ERPAPI.Controllers
                     .Where(u => t.TeamId.Contains(u.UserId))
                     .Select(u => new { FullName = u.FirstName + " " + u.LastName })
                     .ToList(),
-                /*Supervisor = _context.Users
-                    .Where(user => pp.UserId.Contains(user.UserId) && user.RoleId == 5)
-                    .Select(u => new { FullName = u.FirstName + " " + u.LastName })
-                    .ToList(),
-                t.Status,*/
+
                 Supervisor = users
                         .Where(u => u.UserId == supervisorLogs
                             .Where(s => s.TransactionId == t.TransactionId)
@@ -738,12 +628,6 @@ namespace ERPAPI.Controllers
 
             return Ok(processWiseData);
         }
-
-
-
-
-
-
 
     }
 }

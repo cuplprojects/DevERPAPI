@@ -38,7 +38,11 @@ namespace ERPAPI.Data
         public DbSet<Team> Teams { get; set; }
         public DbSet<CatchTeam> CatchTeams { get; set; }
         public DbSet<Dispatch> Dispatch { get; set; }
-
+        public DbSet<ExamType> ExamTypes { get; set; }
+        public DbSet<Course> Courses { get; set; }
+        public DbSet<Session> Sessions { get; set; }
+        public DbSet<Subject> Subjects { get; set; }
+        public DbSet<Language> Languages { get; set; }
 
 
 
