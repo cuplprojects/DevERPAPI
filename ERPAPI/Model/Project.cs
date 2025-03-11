@@ -16,9 +16,9 @@ namespace ERPAPI.Model
         public int? NoOfSeries { get; set; }
         public string? SeriesName { get; set; }
         public DateTime Date { get; set; }
-        public string? QuantityThreshold { get; set; } 
-
-
+        public string? QuantityThreshold { get; set; }
+        public int SessionId { get; set; }
+        public int ExamTypeId { get; set; }
     }
 
 
