@@ -9,10 +9,10 @@ namespace ERPAPI.Model
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int QPMasterId { get; set; }
         public int GroupId { get; set; }
-        public int TypeId { get; set; }
+        public int? TypeId { get; set; }
         public string? NEPCode { get; set; }
         public string? PrivateCode { get; set; }
-        public string? SubjectId { get; set; }
+        public int? SubjectId { get; set; }
         public string? PaperNumber { get; set; }
         public string? PaperTitle { get; set; }
         public int? MaxMarks { get; set; }

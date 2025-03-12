@@ -20,7 +20,7 @@ namespace ERPAPI.Data
         public DbSet<Transaction> Transaction { get; set; }
         public DbSet<Camera> Camera { get; set; }
         public DbSet<Alarm> Alarm { get; set; }
-
+        public DbSet<QpMaster> QpMasters { get; set; }
         public DbSet<Message> Message { get; set; }
         public DbSet<TextLabel> TextLabel { get; set; }
 
