@@ -71,5 +71,19 @@ namespace ERPAPI.Controllers
 
             return Ok(subject);
         }
+
+        [HttpGet()]
+        public async Task<IActionResult> GetSubjectId(string subject)
+        {
+            var subjectname = await _context.Subjects
+                .Where(c => c.SubjectName == subject)
+                .Select(c => c.SubjectId)
+                .FirstOrDefaultAsync();
+
+            if (subjectname == null)
+                return NotFound("Course not found.");
+
+            return Ok(subjectname);
+        }
     }
 }
