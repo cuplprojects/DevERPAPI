@@ -8,6 +8,6 @@ namespace ERPAPI.Model
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int LanguageId { get; set; }
-        public string LanguageName { get; set; }
+        public string Languages { get; set; }
     }
 }

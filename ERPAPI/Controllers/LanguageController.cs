@@ -41,7 +41,7 @@ namespace ERPAPI.Controllers
             if (existingLanguage == null)
                 return NotFound("Language not found.");
 
-            existingLanguage.LanguageName = updatedLanguage.LanguageName;
+            existingLanguage.Languages = updatedLanguage.Languages;
 
             await _context.SaveChangesAsync();
             return Ok(existingLanguage);
@@ -71,5 +71,20 @@ namespace ERPAPI.Controllers
 
             return Ok(language);
         }
+
+        [HttpGet("Language")]
+        public async Task<ActionResult<IEnumerable<Language>>> GetLanguageId(string language)
+        {
+            var languages = await _context.Languages
+                  .Where(c => c.Languages == language)
+                  .Select(c => c.LanguageId)
+                  .FirstOrDefaultAsync();
+
+            if (languages == null)
+                return NotFound("Language not found.");
+
+            return Ok(languages);
+        }
+
     }
 }
