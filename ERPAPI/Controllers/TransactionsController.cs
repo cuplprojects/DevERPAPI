@@ -691,8 +691,8 @@ namespace ERPAPI.Controllers
             return _context.Transaction.Any(e => e.TransactionId == id);
         }
 
-
-       /* [Authorize]
+/*
+        [Authorize]
         [HttpGet("all-project-completion-percentages")]
         public async Task<ActionResult> GetAllProjectCompletionPercentages([FromQuery] List<int> projectIds)
         {
