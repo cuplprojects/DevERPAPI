@@ -19,7 +19,7 @@ namespace ERPAPI.Controllers
         }
 
         // GET: api/Course
-        [HttpGet]
+  /*      [HttpGet]
         public async Task<ActionResult<IEnumerable<Course>>> GetCourse()
         {
             try
@@ -32,7 +32,7 @@ namespace ERPAPI.Controllers
 
                 return StatusCode(500, "Internal server error");
             }
-        }
+        }*/
 
         // POST: api/Course
         [HttpPost]

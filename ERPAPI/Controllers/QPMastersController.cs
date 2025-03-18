@@ -4,6 +4,9 @@ using ERPAPI.Service;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
+using System.Text.Json;
+
 
 namespace ERPAPI.Controllers
 {
@@ -202,6 +205,54 @@ namespace ERPAPI.Controllers
         {
             return _context.QpMasters.Any(e => e.QPMasterId == id);
         }
+
+        [HttpGet("Filter")]
+        public async Task<IActionResult> GetQpMasters(
+     [FromQuery] int? groupId = null,
+     [FromQuery] int? typeId = null,
+     [FromQuery] int? courseId = null,
+     [FromQuery] int? examTypeId = null)
+        {
+            var query = _context.QpMasters.AsQueryable();
+
+            if (groupId.HasValue || typeId.HasValue || courseId.HasValue || examTypeId.HasValue)
+            {
+                if (groupId.HasValue)
+                    query = query.Where(q => q.GroupId == groupId);
+                if (typeId.HasValue)
+                    query = query.Where(q => q.TypeId == typeId);
+                if (courseId.HasValue)
+                    query = query.Where(q => q.CourseId == courseId);
+                if (examTypeId.HasValue)
+                    query = query.Where(q => q.ExamTypeId == examTypeId);
+            }
+
+            var result = await query
+                .AsNoTracking()
+                .Select(q => new
+                {
+                    q.QPMasterId,
+                    q.GroupId,
+                    q.TypeId,
+                    q.NEPCode,
+                    q.PrivateCode,
+                    q.SubjectId,
+                    q.PaperNumber,
+                    q.PaperTitle,
+                    q.MaxMarks,
+                    q.Duration,
+                    q.CustomizedField1,
+                    q.CustomizedField2,
+                    q.CustomizedField3,
+                    q.CourseId,
+                    q.ExamTypeId
+                })
+                .ToListAsync();  // Add ToListAsync() to execute the query and return the result
+
+            return Ok(result);
+        }
+
+
     }
 }
 
