@@ -73,13 +73,15 @@ namespace ERPAPI.Controllers
             return Ok(examType);
         }
 
-<<<<<<< HEAD
+
         [HttpGet]
         public async Task<IActionResult> GetAllExamTypes()
         {
             var examTypes = await _context.ExamTypes.ToListAsync();
             return Ok(examTypes);
-=======
+        }
+
+
         [HttpGet("ExamType")]
         public async Task<ActionResult<IEnumerable<ExamType>>> GetExamType(string examtype)
         {
@@ -92,7 +94,7 @@ namespace ERPAPI.Controllers
                 return NotFound("Type not found.");
 
             return Ok(types);
->>>>>>> Madhavi
+
         }
     }
 }

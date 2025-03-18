@@ -73,7 +73,7 @@ namespace ERPAPI.Controllers
             return Ok(language);
         }
 
-<<<<<<< HEAD
+
         // GET: api/Language
         [HttpGet]
         public async Task<IActionResult> GetAllLanguages()
@@ -81,7 +81,7 @@ namespace ERPAPI.Controllers
             var languages = await _context.Languages.ToListAsync();
             return Ok(languages);
         }
-=======
+
         [HttpGet("Language")]
         public async Task<ActionResult<IEnumerable<Language>>> GetLanguageId(string language)
         {
@@ -96,6 +96,5 @@ namespace ERPAPI.Controllers
             return Ok(languages);
         }
 
->>>>>>> Madhavi
     }
 }
