@@ -18,28 +18,6 @@ namespace ERPAPI.Controllers
             _context = context;
         }
 
-        // GET: api/Course
-       /* [HttpGet]
-        public async Task<ActionResult<IEnumerable<Course>>> GetCourse()
-        {
-            try
-            {
-                var course = await _context.Courses.ToListAsync();
-                return course;
-            }
-            catch (Exception)
-            {
-                return StatusCode(500, "Internal server error");
-            }
-        }*/
-
-        // GET: api/Course
-        [HttpGet]
-        public async Task<IActionResult> GetAllCourses()
-        {
-            var courses = await _context.Courses.ToListAsync();
-            return Ok(courses);
-        }
 
         // POST: api/Course
         [HttpPost]
