@@ -75,9 +75,6 @@ namespace ERPAPI.Controllers
         }
 
 
-        
-
-
         [HttpGet("GetCourse")]
         public async Task<IActionResult> GetCourseByName(string courseName)
         {
