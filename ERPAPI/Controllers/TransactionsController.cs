@@ -648,14 +648,6 @@ namespace ERPAPI.Controllers
         }
 
 
-
-
-
-
-
-
-
-
         // DELETE: api/Transactions/5
         [Authorize]
         [HttpDelete("{id}")]
@@ -678,17 +670,8 @@ namespace ERPAPI.Controllers
         }
 
 
-        /*      [Authorize]
-              [HttpGet("all-project-completion-percentages")]
-              public async Task<ActionResult> GetAllProjectCompletionPercentages([FromQuery] List<int> projectIds)
-              {
-                  if (projectIds == null || !projectIds.Any())
-                  {
-                      return BadRequest("No project IDs provided.");
-                  }
-                  var projectCompletionPercentages = await _projectCompletionService.CalculateProjectCompletionPercentages(projectIds);
-                  return Ok(projectCompletionPercentages);
-              }*/
+
+
 
 
         [HttpGet("all-project-completion-percentages")]

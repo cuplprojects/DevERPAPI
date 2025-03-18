@@ -82,7 +82,7 @@ namespace ERPAPI.Controllers
             return Ok(subjects);
         }
 
-        [HttpGet()]
+        [HttpGet("Subject")]
         public async Task<IActionResult> GetSubjectId(string subject)
         {
             var subjectname = await _context.Subjects
