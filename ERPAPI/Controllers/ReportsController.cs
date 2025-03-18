@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using ERPAPI.Model;
 using ERPAPI.Data;
 using ERPGenericFunctions.Model;
+using System.Globalization;
 
 namespace ERPAPI.Controllers
 {
@@ -155,9 +156,9 @@ namespace ERPAPI.Controllers
                     .Where(t => t.ProjectId == projectId)
                     .ToListAsync();
                 var eventLogs = await _context.EventLogs
-     .Where(e => transactions.Select(t => t.TransactionId).Contains(e.TransactionId.Value)) // Remove e.Event from Where clause
-     .Select(e => new { e.TransactionId, e.LoggedAT, e.EventID }) // Only select TransactionId and LoggedAT
-     .ToListAsync();
+                    .Where(e => transactions.Select(t => t.TransactionId).Contains(e.TransactionId.Value)) // Remove e.Event from Where clause
+                    .Select(e => new { e.TransactionId, e.LoggedAT, e.EventID }) // Only select TransactionId and LoggedAT
+                    .ToListAsync();
                 var allMachines = await _context.Set<Machine>().ToListAsync();
                 var allZones = await _context.Set<Zone>().ToListAsync();
                 var allTeams = await _context.Set<Team>().ToListAsync();
@@ -171,22 +172,28 @@ namespace ERPAPI.Controllers
                 // Map QuantitySheet data with required details
                 var result = quantitySheets.Select(q =>
                 {
-                    // Get transactions related to this QuantitySheetId
                     var relatedTransactions = transactions
                         .Where(t => t.QuantitysheetId == q.QuantitySheetId)
                         .ToList();
 
-                    var startLogs = relatedTransactions.Select(t => eventLogs
-    .Where(e => e.TransactionId == t.TransactionId)
-    .OrderBy(e => e.EventID)
-    .Select(e => e.LoggedAT)
-    .FirstOrDefault()).Min();
+                    DateTime? startLogs = relatedTransactions.Select(t => eventLogs
+                        .Where(e => e.TransactionId == t.TransactionId)
+                        .OrderBy(e => e.EventID)
+                        .Select(e => (DateTime?)e.LoggedAT)
+                        .FirstOrDefault()).Min();
 
-                    var endLogs = relatedTransactions.Select(t => eventLogs
+                    DateTime? endLogs = relatedTransactions.Select(t => eventLogs
                         .Where(e => e.TransactionId == t.TransactionId)
                         .OrderByDescending(e => e.EventID)
-                        .Select(e => e.LoggedAT)
+                        .Select(e => (DateTime?)e.LoggedAT)
                         .FirstOrDefault()).Max();
+
+                    string duration = "N/A";
+                    if (startLogs.HasValue && endLogs.HasValue)
+                    {
+                        var timeSpan = endLogs.Value - startLogs.Value;
+                        duration = $"{timeSpan.Days} Days:{timeSpan.Hours:D2} Hours:{timeSpan.Minutes:D2} Minutes";
+                    }
 
                     string catchStatus;
                     if (!relatedTransactions.Any())
@@ -195,7 +202,6 @@ namespace ERPAPI.Controllers
                     }
                     else
                     {
-                        // Check if any transaction has ProcessId == 12
                         var process12Transaction = relatedTransactions.FirstOrDefault(t => t.ProcessId == 12);
                         if (process12Transaction != null && process12Transaction.Status == 2)
                         {
@@ -212,14 +218,13 @@ namespace ERPAPI.Controllers
                     }
 
                     var lastTransactionProcessId = relatedTransactions
-                        .OrderByDescending(t => t.TransactionId) // Get the latest transaction based on TransactionId
+                        .OrderByDescending(t => t.TransactionId)
                         .Select(t => t.ProcessId)
                         .FirstOrDefault();
 
                     var lastTransactionProcessName = allProcesses
                         .FirstOrDefault(p => p.Id == lastTransactionProcessId)?.Name;
 
-                    // Get Dispatch Date if available, else return "Not Available"
                     var dispatchEntry = dispatches.FirstOrDefault(d => d.LotNo == q.LotNo);
                     var dispatchDate = dispatchEntry?.UpdatedAt.HasValue == true
                         ? dispatchEntry.UpdatedAt.Value.ToString("yyyy-MM-dd")
@@ -245,16 +250,16 @@ namespace ERPAPI.Controllers
                                 .Select(p => p.Name)
                                 .ToList()
                             : null,
-                        CatchStatus = catchStatus, // Updated logic
+                        CatchStatus = catchStatus,
                         StartTime = startLogs,
-                        EndTime = endLogs,
+                        EndTime = catchStatus == "Completed" ? endLogs : null,
+                        // Apply condition here
+                        Duration = duration,
                         TwelvethProcess = relatedTransactions.Any(t => t.ProcessId == 12),
                         CurrentProcessName = lastTransactionProcessName,
-                        DispatchDate = dispatchDate, // Added Dispatch Date
-                                                     // Grouped Transaction Data
+                        DispatchDate = dispatchDate,
                         TransactionData = new
                         {
-
                             ZoneDescriptions = relatedTransactions
                                 .Select(t => t.ZoneId)
                                 .Distinct()
@@ -284,6 +289,7 @@ namespace ERPAPI.Controllers
                     };
                 });
 
+
                 return Ok(result);
             }
             catch (Exception ex)
@@ -292,6 +298,7 @@ namespace ERPAPI.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "An error occurred.", Details = ex.Message });
             }
         }
+
 
 
 
@@ -331,36 +338,36 @@ namespace ERPAPI.Controllers
             }
         }
 
-        /* [HttpGet("search")]
-         public async Task<IActionResult> SearchQuantitySheet(
-     [FromQuery] string query,
-     [FromQuery] int page = 1,
-     [FromQuery] int pageSize = 5,
-     [FromQuery] int? groupId = null,
-     [FromQuery] int? projectId = null)
-         {
-             if (string.IsNullOrWhiteSpace(query))
-             {
-                 return BadRequest("Search query cannot be empty.");
-             }
+        [HttpGet("search")]
+        public async Task<IActionResult> SearchQuantitySheet(
+    [FromQuery] string query,
+    [FromQuery] int page = 1,
+    [FromQuery] int pageSize = 5,
+    [FromQuery] int? groupId = null,
+    [FromQuery] int? projectId = null)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return BadRequest("Search query cannot be empty.");
+            }
 
-             var queryable = _context.QuantitySheets.AsQueryable();
+            var queryable = _context.QuantitySheets.AsQueryable();
 
-             if (groupId.HasValue)
-             {
-                 var projectIdsInGroup = _context.Projects
-                     .Where(p => p.GroupId == groupId)
-                     .Select(p => p.ProjectId);
+            if (groupId.HasValue)
+            {
+                var projectIdsInGroup = _context.Projects
+                    .Where(p => p.GroupId == groupId)
+                    .Select(p => p.ProjectId);
 
-                 queryable = queryable.Where(q => projectIdsInGroup.Contains(q.ProjectId));
-             }
+                queryable = queryable.Where(q => projectIdsInGroup.Contains(q.ProjectId));
+            }
 
-             if (projectId.HasValue)
-             {
-                 queryable = queryable.Where(q => q.ProjectId == projectId);
-             }
+            if (projectId.HasValue)
+            {
+                queryable = queryable.Where(q => q.ProjectId == projectId);
+            }
 
-             var totalRecords = await queryable
+            /* var totalRecords = await queryable
                  .CountAsync(q => q.CatchNo.StartsWith(query) ||
                                  q.Subject.StartsWith(query) ||
                                  q.Course.StartsWith(query) ||
@@ -385,10 +392,39 @@ namespace ERPAPI.Controllers
                  })
                  .Skip((page - 1) * pageSize) // Skip records based on the page number
                  .Take(pageSize) // Limit the number of results per page
-                 .ToListAsync();
+                 .ToListAsync();*/
 
-             return Ok(new { TotalRecords = totalRecords, Results = results });
-         }*/
+            var totalRecords = await queryable
+    .CountAsync(q => q.CatchNo.StartsWith(query) ||
+                    q.SubjectId.ToString().StartsWith(query) ||
+                    q.CourseId.ToString().StartsWith(query) ||
+                    (q.PaperTitle != null && q.PaperTitle.StartsWith(query)));
+
+            var results = await queryable
+                .Where(q => q.CatchNo.StartsWith(query) ||
+                            q.SubjectId.ToString().StartsWith(query) ||
+                            q.CourseId.ToString().StartsWith(query) ||
+                            (q.PaperTitle != null && q.PaperTitle.StartsWith(query)))
+                .Select(q => new
+                {
+                    q.CatchNo,
+                    MatchedColumn = q.CatchNo.StartsWith(query) ? "CatchNo" :
+                                    q.SubjectId.ToString().StartsWith(query) ? "SubjectId" :
+                                    q.CourseId.ToString().StartsWith(query) ? "CourseId" : "PaperTitle",
+                    MatchedValue = q.CatchNo.StartsWith(query) ? q.CatchNo :
+                                   q.SubjectId.ToString().StartsWith(query) ? q.SubjectId.ToString() :
+                                   q.CourseId.ToString().StartsWith(query) ? q.CourseId.ToString() : q.PaperTitle,
+                    q.ProjectId,
+                    q.LotNo
+                })
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return Ok(new { TotalRecords = totalRecords, Results = results });
+        }
+
+
 
 
 
@@ -628,6 +664,219 @@ namespace ERPAPI.Controllers
 
             return Ok(processWiseData);
         }
+
+        [HttpGet("DailyReports")]
+        public async Task<IActionResult> GetUniqueTeamAndMachineIds(string date, int processId)
+        {
+            try
+            {
+                // ✅ Validate & Parse Date
+                if (!DateTime.TryParseExact(date, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedDate))
+                {
+                    return BadRequest("Invalid date format. Please use dd-MM-yyyy.");
+                }
+
+                // ✅ Fetch matching transactions first
+                var eventLogs = await _context.EventLogs
+                    .Where(el => el.Category == "Transaction"
+                        && el.LoggedAT.Date == parsedDate.Date
+                        && el.Event == "Status Updated"
+                        && el.OldValue == "1"
+                        && el.NewValue == "2")
+                    .Join(_context.Transaction,
+                        el => el.TransactionId,
+                        t => t.TransactionId,
+                        (el, t) => new { el, t })
+                    .Where(joined => joined.t.ProcessId == processId)
+                    .ToListAsync();
+
+                // ✅ Extract unique TeamIds in-memory
+                var uniqueTeamIds = eventLogs
+                    .AsEnumerable()
+                    .SelectMany(joined => joined.t.TeamId ?? new List<int>()) // Handle null lists
+                    .Distinct()
+                    .OrderBy(id => id)
+                    .ToList();
+
+                // ✅ Fetch TeamMembers' Names from User Table
+                var teamMembers = await _context.Users
+                    .Where(u => uniqueTeamIds.Contains(u.UserId))
+                    .Select(u => new { /*u.UserId,*/ Name = u.FirstName + " " + u.LastName })
+                    .ToListAsync();
+
+                // ✅ Extract unique MachineIds in-memory
+                var uniqueMachineIds = eventLogs
+                    .Select(joined => joined.t.MachineId)
+                    .Distinct()
+                    .OrderBy(id => id)
+                    .ToList();
+
+                // ✅ Fetch Machine Names
+                var machineData = await _context.Machine
+                    .Where(m => uniqueMachineIds.Contains(m.MachineId))
+                    .Select(m => new { m.MachineId, m.MachineName })
+                    .ToListAsync();
+
+                // ✅ Fetch unique EventTriggeredBy IDs
+                var uniqueEventTriggeredByIds = await _context.EventLogs
+                    .Where(el => el.Category == "Transaction"
+                        && el.LoggedAT.Date == parsedDate.Date
+                        && el.Event == "Status Updated"
+                        && el.OldValue == "1"
+                        && el.NewValue == "2")
+                    .Join(_context.Transaction,
+                        el => el.TransactionId,
+                        t => t.TransactionId,
+                        (el, t) => new { el, t })
+                    .Join(_context.QuantitySheets,
+                        joined => joined.t.QuantitysheetId,
+                        qs => qs.QuantitySheetId,
+                        (joined, qs) => new { joined.el, joined.t, qs })
+                    .Where(finalJoin => finalJoin.t.ProcessId == processId)
+                    .Select(finalJoin => finalJoin.el.EventTriggeredBy)
+                    .Distinct()
+                    .ToListAsync();
+
+                // ✅ Fetch Supervisor Names from User Table
+                var supervisors = await _context.Users
+                    .Where(u => uniqueEventTriggeredByIds.Contains(u.UserId))
+                    .Select(u => new { /*u.UserId,*/ Name = u.FirstName + " " + u.LastName })
+                    .ToListAsync();
+
+                // ✅ Count QuantitySheetIds
+                var quantitySheetCount = await _context.EventLogs
+                    .Where(el => el.Category == "Transaction"
+                        && el.LoggedAT.Date == parsedDate.Date
+                        && el.Event == "Status Updated"
+                        && el.OldValue == "1"
+                        && el.NewValue == "2")
+                    .Join(_context.Transaction,
+                        el => el.TransactionId,
+                        t => t.TransactionId,
+                        (el, t) => new { el, t })
+                    .Join(_context.QuantitySheets,
+                        joined => joined.t.QuantitysheetId,
+                        qs => qs.QuantitySheetId,
+                        (joined, qs) => new { joined.el, joined.t, qs })
+                    .Where(finalJoin => finalJoin.t.ProcessId == processId)
+                    .Select(finalJoin => finalJoin.qs.QuantitySheetId)
+                    .Distinct()
+                    .CountAsync();
+
+                // ✅ Fetch FirstLoggedAt and LastLoggedAt
+                var logDates = await _context.EventLogs
+                    .Where(el => el.Category == "Transaction"
+                        && el.LoggedAT.Date == parsedDate.Date
+                        && el.Event == "Status Updated"
+                        && el.OldValue == "1"
+                        && el.NewValue == "2")
+                    .Join(_context.Transaction,
+                        el => el.TransactionId,
+                        t => t.TransactionId,
+                        (el, t) => new { el, t })
+                    .Join(_context.QuantitySheets,
+                        joined => joined.t.QuantitysheetId,
+                        qs => qs.QuantitySheetId,
+                        (joined, qs) => new { joined.el, joined.t, qs })
+                    .Where(finalJoin => finalJoin.t.ProcessId == processId)
+                    .Select(finalJoin => finalJoin.el.LoggedAT)
+                    .ToListAsync();
+
+                var firstLoggedAt = logDates.Min();
+                var lastLoggedAt = logDates.Max();
+
+                // ✅ Calculate Time Difference
+                TimeSpan timeDifference = lastLoggedAt - firstLoggedAt;
+                string formattedTimeDifference = $"{timeDifference.Days}d:{timeDifference.Hours}h:{timeDifference.Minutes}m:{timeDifference.Seconds}s";
+
+                // ✅ Calculate Total Quantity
+                var totalQuantity = await _context.EventLogs
+                    .Where(el => el.Category == "Transaction"
+                        && el.LoggedAT.Date == parsedDate.Date
+                        && el.Event == "Status Updated"
+                        && el.OldValue == "1"
+                        && el.NewValue == "2")
+                    .Join(_context.Transaction,
+                        el => el.TransactionId,
+                        t => t.TransactionId,
+                        (el, t) => new { el, t })
+                    .Join(_context.QuantitySheets,
+                        joined => joined.t.QuantitysheetId,
+                        qs => qs.QuantitySheetId,
+                        (joined, qs) => new { joined.el, joined.t, qs })
+                    .Where(finalJoin => finalJoin.t.ProcessId == processId)
+                    .SumAsync(finalJoin => finalJoin.qs.Quantity);
+
+                // ✅ Fetch Distinct Lot Numbers
+                var distinctLotNos = await _context.EventLogs
+                    .Where(el => el.Category == "Transaction"
+                        && el.LoggedAT.Date == parsedDate.Date
+                        && el.Event == "Status Updated"
+                        && el.OldValue == "1"
+                        && el.NewValue == "2")
+                    .Join(_context.Transaction,
+                        el => el.TransactionId,
+                        t => t.TransactionId,
+                        (el, t) => new { el, t })
+                    .Where(joined => joined.t.ProcessId == processId)
+                    .Select(joined => joined.t.LotNo)
+                    .Distinct()
+                    .ToListAsync();
+
+                // ✅ Return Data
+                return Ok(new
+                {
+                    TeamMembers = teamMembers,
+                    Machines = machineData,
+                    Supervisors = supervisors,
+                    TotalCatches = quantitySheetCount,
+                    FirstLoggedAt = firstLoggedAt,
+                    LastLoggedAt = lastLoggedAt,
+                    TimeDifference = formattedTimeDifference,
+                    TotalQuantity = totalQuantity,
+                    DistinctLotNos = distinctLotNos // Add this line to include distinct lot numbers in the response
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred", error = ex.Message });
+            }
+        }
+
+
+        [HttpGet("lot-numbers-count")]
+        public async Task<ActionResult<int>> GetLotNumbersCount([FromQuery] string date)
+        {
+            try
+            {
+                // Validate and parse the date parameter
+                if (string.IsNullOrEmpty(date) || !DateTime.TryParseExact(date, "dd-MM-yyyy",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out DateTime targetDate))
+                {
+                    return BadRequest("Invalid date format. Please use dd-MM-yyyy format.");
+                }
+
+                // LINQ query to get count
+                var lotNumbersCount = await (from el in _context.EventLogs
+                                             join t in _context.Transaction on el.TransactionId equals t.TransactionId
+                                             join qs in _context.QuantitySheets on t.QuantitysheetId equals qs.QuantitySheetId
+                                             where el.Category == "Transaction"
+                                             && el.LoggedAT.Date == targetDate
+                                             && el.Event == "Status Updated"
+                                             && el.OldValue == "1"
+                                             && el.NewValue == "2"
+                                             select t.LotNo)
+                                           .CountAsync();
+
+                return Ok(lotNumbersCount);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"An error occurred while retrieving lot numbers count: {ex.Message}");
+            }
+        }
+
 
     }
 }

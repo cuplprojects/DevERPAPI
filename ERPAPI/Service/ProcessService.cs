@@ -173,8 +173,8 @@ namespace ERPAPI.Service
 
     }
     public class Threshold
-        {
-            public int Pages { get; set; }
-            public int Quantity { get; set; }
-        }
+    {
+        public int Pages { get; set; }
+        public int Quantity { get; set; }
+    }
 }
