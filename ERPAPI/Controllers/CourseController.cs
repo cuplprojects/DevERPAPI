@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using ERPAPI.Model;
 using ERPAPI.Data;
@@ -61,7 +62,7 @@ namespace ERPAPI.Controllers
             return NoContent();
         }
 
-        // Optional GET: api/Course/{id}
+        // GET: api/Course/{id}
         [HttpGet("{id}")]
         public async Task<IActionResult> GetCourseById(int id)
         {
@@ -70,6 +71,14 @@ namespace ERPAPI.Controllers
                 return NotFound("Course not found.");
 
             return Ok(course);
+        }
+
+        // GET: api/Course
+        [HttpGet]
+        public async Task<IActionResult> GetAllCourses()
+        {
+            var courses = await _context.Courses.ToListAsync();
+            return Ok(courses);
         }
     }
 }

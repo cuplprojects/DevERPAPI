@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Threading.Tasks;
 using ERPAPI.Model;
 using ERPAPI.Data;
+using System.Linq;
 
 namespace ERPAPI.Controllers
 {
@@ -34,18 +35,31 @@ namespace ERPAPI.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateSession(int id, [FromBody] Session updatedSession)
         {
-            if (id != updatedSession.SessionId)
-                return BadRequest("Session ID mismatch.");
+            if (updatedSession == null || id != updatedSession.SessionId)
+                return BadRequest("Invalid session data or session ID mismatch.");
 
             var existingSession = await _context.Sessions.FindAsync(id);
             if (existingSession == null)
-                return NotFound("Session not found.");
+                return NotFound($"No session found with ID = {id}.");
 
+            // Update fields
             existingSession.session = updatedSession.session;
-
-            await _context.SaveChangesAsync();
-            return Ok(existingSession);
+            existingSession.Status = updatedSession.Status;
+            try
+            {
+                await _context.SaveChangesAsync();
+                return Ok(new
+                {
+                    Message = "Session updated successfully.",
+                    Data = existingSession
+                });
+            }
+            catch (DbUpdateException ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
         }
+
 
         // DELETE: api/Session/{id}
         [HttpDelete("{id}")]
@@ -61,7 +75,7 @@ namespace ERPAPI.Controllers
             return NoContent();
         }
 
-        // Optional GET: api/Session/{id}
+        // GET: api/Session/{id}
         [HttpGet("{id}")]
         public async Task<IActionResult> GetSessionById(int id)
         {
@@ -70,6 +84,14 @@ namespace ERPAPI.Controllers
                 return NotFound("Session not found.");
 
             return Ok(session);
+        }
+
+        // GET: api/Session
+        [HttpGet]
+        public async Task<IActionResult> GetAllSessions()
+        {
+            var sessions = await _context.Sessions.ToListAsync();
+            return Ok(sessions);
         }
     }
 }

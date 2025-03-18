@@ -9,5 +9,6 @@ namespace ERPAPI.Model
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int SessionId { get; set; }
         public string session { get; set; }
+        public bool Status { get; set; }
     }
 }
