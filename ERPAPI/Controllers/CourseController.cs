@@ -83,7 +83,7 @@ namespace ERPAPI.Controllers
         }
 
 
-        [HttpGet()]
+        [HttpGet("GetCourse")]
         public async Task<IActionResult> GetCourseByName(string courseName)
         {
             var course = await _context.Courses
