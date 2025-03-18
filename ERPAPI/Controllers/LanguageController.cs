@@ -73,6 +73,7 @@ namespace ERPAPI.Controllers
             return Ok(language);
         }
 
+
         // GET: api/Language
         [HttpGet]
         public async Task<IActionResult> GetAllLanguages()
@@ -80,5 +81,20 @@ namespace ERPAPI.Controllers
             var languages = await _context.Languages.ToListAsync();
             return Ok(languages);
         }
+
+        [HttpGet("Language")]
+        public async Task<ActionResult<IEnumerable<Language>>> GetLanguageId(string language)
+        {
+            var languages = await _context.Languages
+                  .Where(c => c.Languages == language)
+                  .Select(c => c.LanguageId)
+                  .FirstOrDefaultAsync();
+
+            if (languages == null)
+                return NotFound("Language not found.");
+
+            return Ok(languages);
+        }
+
     }
 }

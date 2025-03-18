@@ -43,6 +43,10 @@ namespace ERPAPI.Data
         public DbSet<Session> Sessions { get; set; }
         public DbSet<Subject> Subjects { get; set; }
         public DbSet<Language> Languages { get; set; }
+<<<<<<< HEAD
+=======
+       
+>>>>>>> e3525abe64f19457248146bb69f9c3673f0e8cd1
 
         public DbSet<Display> Displays { get; set; }
         public DbSet<Notification> Notifications { get; set; }
