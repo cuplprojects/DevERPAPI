@@ -213,41 +213,54 @@ namespace ERPAPI.Controllers
      [FromQuery] int? courseId = null,
      [FromQuery] int? examTypeId = null)
         {
-            var query = _context.QpMasters.AsQueryable();
+            var query = from qp in _context.QpMasters
+                        join grp in _context.Groups on qp.GroupId equals grp.Id into grpJoin
+                        from grp in grpJoin.DefaultIfEmpty()
 
-            if (groupId.HasValue || typeId.HasValue || courseId.HasValue || examTypeId.HasValue)
-            {
-                if (groupId.HasValue)
-                    query = query.Where(q => q.GroupId == groupId);
-                if (typeId.HasValue)
-                    query = query.Where(q => q.TypeId == typeId);
-                if (courseId.HasValue)
-                    query = query.Where(q => q.CourseId == courseId);
-                if (examTypeId.HasValue)
-                    query = query.Where(q => q.ExamTypeId == examTypeId);
-            }
+                        join crs in _context.Courses on qp.CourseId equals crs.CourseId into crsJoin
+                        from crs in crsJoin.DefaultIfEmpty()
+
+                        join et in _context.ExamTypes on qp.ExamTypeId equals et.ExamTypeId into etJoin
+                        from et in etJoin.DefaultIfEmpty()
+
+                        join sub in _context.Subjects on qp.SubjectId equals sub.SubjectId into subJoin
+                        from sub in subJoin.DefaultIfEmpty()
+
+                        select new
+                        {
+                            qp.QPMasterId,
+                            GroupName = grp != null ? grp.Name : null,
+                            Type = et != null ? et.Type : null,
+                            qp.NEPCode,
+                            qp.PrivateCode,
+                            SubjectName = sub != null ? sub.SubjectName : null,
+                            qp.PaperNumber,
+                            qp.PaperTitle,
+                            qp.MaxMarks,
+                            qp.Duration,
+                            qp.CustomizedField1,
+                            qp.CustomizedField2,
+                            qp.CustomizedField3,
+                            CourseName = crs != null ? crs.CourseName : null,
+                            ExamTypeName = et != null ? et.TypeName : null
+                        };
+
+            if (groupId.HasValue)
+                query = query.Where(q => q.GroupName != null &&
+                                         _context.Groups.Any(g => g.Id == groupId && g.Name == q.GroupName));
+
+            if (typeId.HasValue)
+                query = query.Where(q => _context.ExamTypes.Any(t => t.ExamTypeId == typeId && t.Type == q.Type));
+
+            if (courseId.HasValue)
+                query = query.Where(q => _context.Courses.Any(c => c.CourseId == courseId && c.CourseName == q.CourseName));
+
+            if (examTypeId.HasValue)
+                query = query.Where(q => _context.ExamTypes.Any(e => e.ExamTypeId == examTypeId && e.TypeName == q.ExamTypeName));
 
             var result = await query
                 .AsNoTracking()
-                .Select(q => new
-                {
-                    q.QPMasterId,
-                    q.GroupId,
-                    q.TypeId,
-                    q.NEPCode,
-                    q.PrivateCode,
-                    q.SubjectId,
-                    q.PaperNumber,
-                    q.PaperTitle,
-                    q.MaxMarks,
-                    q.Duration,
-                    q.CustomizedField1,
-                    q.CustomizedField2,
-                    q.CustomizedField3,
-                    q.CourseId,
-                    q.ExamTypeId
-                })
-                .ToListAsync();  // Add ToListAsync() to execute the query and return the result
+                .ToListAsync();
 
             return Ok(result);
         }
