@@ -28,6 +28,21 @@ namespace ERPAPI.Controllers
             return await _context.Types.ToListAsync();
         }
 
+
+        [HttpGet("Type")]
+        public async Task<ActionResult<IEnumerable<PaperType>>> GetTypeByTypeId(string type)
+        {
+            var types = await _context.Types
+                  .Where(c => c.Types == type)
+                  .Select(c => c.TypeId)
+                  .FirstOrDefaultAsync();
+
+            if (types == null)
+                return NotFound("Type not found.");
+
+            return Ok(types);
+        }
+
         // GET: api/PaperTypes/5
         [HttpGet("{id}")]
         public async Task<ActionResult<PaperType>> GetPaperType(int id)

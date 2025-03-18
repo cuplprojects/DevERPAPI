@@ -73,12 +73,27 @@ namespace ERPAPI.Controllers
             return Ok(course);
         }
 
+<<<<<<< HEAD
         // GET: api/Course
         [HttpGet]
         public async Task<IActionResult> GetAllCourses()
         {
             var courses = await _context.Courses.ToListAsync();
             return Ok(courses);
+=======
+        [HttpGet()]
+        public async Task<IActionResult> GetCourseByName(string courseName)
+        {
+            var course = await _context.Courses
+                .Where(c => c.CourseName == courseName)
+                .Select(c => c.CourseId)
+                .FirstOrDefaultAsync();
+
+            if (course == null)
+                return NotFound("Course not found.");
+
+            return Ok(course);
+>>>>>>> Madhavi
         }
     }
 }
