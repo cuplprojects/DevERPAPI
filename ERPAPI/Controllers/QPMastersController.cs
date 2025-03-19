@@ -211,7 +211,7 @@ namespace ERPAPI.Controllers
      [FromQuery] int? groupId = null,
      [FromQuery] int? typeId = null,
      [FromQuery] int? courseId = null,
-     [FromQuery] int? examTypeId = null)
+     [FromQuery] List<int> examTypeId = null) // Accepting array input
         {
             var query = from qp in _context.QpMasters
                         join grp in _context.Groups on qp.GroupId equals grp.Id into grpJoin
@@ -255,8 +255,8 @@ namespace ERPAPI.Controllers
             if (courseId.HasValue)
                 query = query.Where(q => _context.Courses.Any(c => c.CourseId == courseId && c.CourseName == q.CourseName));
 
-            if (examTypeId.HasValue)
-                query = query.Where(q => _context.ExamTypes.Any(e => e.ExamTypeId == examTypeId && e.TypeName == q.ExamTypeName));
+            if (examTypeId != null && examTypeId.Any())
+                query = query.Where(q => _context.ExamTypes.Any(e => examTypeId.Contains(e.ExamTypeId) && e.TypeName == q.ExamTypeName));
 
             var result = await query
                 .AsNoTracking()
