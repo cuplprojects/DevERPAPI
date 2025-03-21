@@ -351,6 +351,60 @@ namespace ERPAPI.Controllers
             return Ok("Data inserted into QuantitySheet successfully.");
         }
 
+        [HttpPost("InsertIntoQuantitySheetByCourseId")]
+        public async Task<IActionResult> InsertIntoQuantitySheetByCourseId([FromBody] int courseId)
+        {
+            // Retrieve data from QpMaster table based on courseId
+            var qpMasters = await _context.QpMasters
+                .Where(qp => qp.CourseId == courseId)
+                .Select(qp => new
+                {
+                    qp.QPMasterId, // Include QPMasterId in the selection
+                    qp.NEPCode,
+                    qp.PrivateCode,
+                    qp.PaperNumber,
+                    qp.PaperTitle,
+                    qp.CourseId,
+                    qp.MaxMarks,
+                    qp.Duration,
+                    qp.ExamTypeId,
+                    qp.SubjectId,
+                    qp.LanguageId // Assuming LanguageId is a list of integers
+                })
+                .ToListAsync();
+
+            if (qpMasters == null || !qpMasters.Any())
+            {
+                return NotFound("No QPMasters found for the given course ID.");
+            }
+
+            // Iterate over each QpMaster and insert into QuantitySheet
+            foreach (var qpMaster in qpMasters)
+            {
+                // Create a new QuantitySheet object and map the relevant fields
+                var quantitySheet = new QuantitySheet
+                {
+                    NEPCode = qpMaster.NEPCode,
+                    PrivateCode = qpMaster.PrivateCode,
+                    PaperNumber = qpMaster.PaperNumber,
+                    PaperTitle = qpMaster.PaperTitle,
+                    CourseId = qpMaster.CourseId.Value, // Ensure CourseId is not null
+                    MaxMarks = qpMaster.MaxMarks.Value, // Ensure MaxMarks is not null
+                    Duration = qpMaster.Duration,
+                    ExamTypeId = qpMaster.ExamTypeId.Value, // Ensure ExamTypeId is not null
+                    SubjectId = qpMaster.SubjectId.Value, // Ensure SubjectId is not null
+                    Language = string.Join(", ", qpMaster.LanguageId ?? new List<int>()), // Convert list to string
+                    QPId = qpMaster.QPMasterId // Use QPMasterId from the selection
+                };
+
+                // Insert the new QuantitySheet record into the database
+                _context.QuantitySheets.Add(quantitySheet);
+                await _context.SaveChangesAsync();
+            }
+
+            return Ok("Data inserted into QuantitySheet successfully.");
+        }
+
 
 
     }
