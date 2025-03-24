@@ -23,7 +23,7 @@ namespace ERPAPI.Data
         public DbSet<QpMaster> QpMasters { get; set; }
         public DbSet<Message> Message { get; set; }
         public DbSet<TextLabel> TextLabel { get; set; }
-
+        public DbSet<QC> QC { get; set; }
         public DbSet<User> Users { get; set; } // Assuming this is already present
         public DbSet<UserAuth> UserAuths { get; set; } // Add this for UserAuth
         public DbSet<SecurityQuestion> SecurityQuestions { get; set; }
