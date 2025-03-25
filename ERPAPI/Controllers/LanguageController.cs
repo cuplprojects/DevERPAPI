@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using ERPAPI.Model;
 using ERPAPI.Data;
@@ -41,7 +42,7 @@ namespace ERPAPI.Controllers
             if (existingLanguage == null)
                 return NotFound("Language not found.");
 
-            existingLanguage.LanguageName = updatedLanguage.LanguageName;
+            existingLanguage.Languages = updatedLanguage.Languages;
 
             await _context.SaveChangesAsync();
             return Ok(existingLanguage);
@@ -61,7 +62,7 @@ namespace ERPAPI.Controllers
             return NoContent();
         }
 
-        // Optional: GET api/Language/{id}
+        // GET: api/Language/{id}
         [HttpGet("{id}")]
         public async Task<IActionResult> GetLanguageById(int id)
         {
@@ -71,5 +72,29 @@ namespace ERPAPI.Controllers
 
             return Ok(language);
         }
+
+
+        // GET: api/Language
+        [HttpGet]
+        public async Task<IActionResult> GetAllLanguages()
+        {
+            var languages = await _context.Languages.ToListAsync();
+            return Ok(languages);
+        }
+
+        [HttpGet("Language")]
+        public async Task<ActionResult<IEnumerable<Language>>> GetLanguageId(string language)
+        {
+            var languages = await _context.Languages
+                  .Where(c => c.Languages == language)
+                  .Select(c => c.LanguageId)
+                  .FirstOrDefaultAsync();
+
+            if (languages == null)
+                return NotFound("Language not found.");
+
+            return Ok(languages);
+        }
+
     }
 }

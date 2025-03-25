@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using ERPAPI.Model;
 using ERPAPI.Data;
@@ -16,6 +17,22 @@ namespace ERPAPI.Controllers
         {
             _context = context;
         }
+
+        // GET: api/Course
+        //[httpget]
+        //public async task<actionresult<ienumerable<course>>> getcourse()
+        //{
+        //    try
+        //    {
+        //        var course = await _context.courses.tolistasync();
+        //        return course;
+        //    }
+        //    catch (exception)
+        //    {
+
+        //        return statuscode(500, "internal server error");
+        //    }
+        //}
 
         // POST: api/Course
         [HttpPost]
@@ -61,7 +78,7 @@ namespace ERPAPI.Controllers
             return NoContent();
         }
 
-        // Optional GET: api/Course/{id}
+        // GET: api/Course/{id}
         [HttpGet("{id}")]
         public async Task<IActionResult> GetCourseById(int id)
         {
@@ -70,6 +87,31 @@ namespace ERPAPI.Controllers
                 return NotFound("Course not found.");
 
             return Ok(course);
+        }
+
+
+        // GET: api/Course
+        [HttpGet]
+        public async Task<IActionResult> GetAllCourses()
+        {
+            var courses = await _context.Courses.ToListAsync();
+            return Ok(courses);
+        }
+
+
+        [HttpGet("GetCourse")]
+        public async Task<IActionResult> GetCourseByName(string courseName)
+        {
+            var course = await _context.Courses
+                .Where(c => c.CourseName == courseName)
+                .Select(c => c.CourseId)
+                .FirstOrDefaultAsync();
+
+            if (course == null)
+                return NotFound("Course not found.");
+
+            return Ok(course);
+
         }
     }
 }

@@ -32,6 +32,7 @@ namespace ERPAPI.Controllers
         }
 
         // POST: api/User/create
+        [Authorize]
         [HttpPost("create")]
         public IActionResult CreateUser(User user)
         {
@@ -97,6 +98,7 @@ namespace ERPAPI.Controllers
 
 
         // GET: api/User
+        [Authorize]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<User>>> GetAllUsers()
         {
@@ -129,6 +131,8 @@ namespace ERPAPI.Controllers
                  return StatusCode(500, "Failed to retrieve operators");
              }
          }*/
+
+        [Authorize]
         [HttpGet("operator")]
         public async Task<ActionResult<IEnumerable<User>>> GetOperators()
         {
@@ -177,6 +181,10 @@ namespace ERPAPI.Controllers
                 {
                     return BadRequest("Invalid token");
                 }
+                var displayIds = await _context.UserDisplays
+                                          .Where(u => u.UserId == userId)
+                                          .Select(u => u.DisplayId)
+                                          .ToListAsync();
 
                 // Retrieve the user from the database
                 var user = await _context.Users
@@ -197,6 +205,8 @@ namespace ERPAPI.Controllers
                             user.Gender,
                             user.Address,
                             user.ProfilePicturePath,
+                            displayIds,
+
                             Role = new
                             {
                                 role.RoleId,
@@ -225,6 +235,7 @@ namespace ERPAPI.Controllers
 
 
         // GET: api/User/{id}
+        [Authorize]
         [HttpGet("{id}")]
         public async Task<ActionResult<User>> GetUserById(int id)
         {
@@ -248,6 +259,7 @@ namespace ERPAPI.Controllers
         }
 
         // POST: api/User/generatePassword/{id}
+        [Authorize]
         [HttpPost("generatePassword/{id}")]
         public IActionResult GeneratePasswordForUser(int id)
         {
@@ -297,6 +309,7 @@ namespace ERPAPI.Controllers
         }
 
         // POST: api/User/uploadProfilePicture/{id}
+        [Authorize]
         [HttpPost("upload/{userId}")]
         public IActionResult UploadImage(int userId)
         {
@@ -349,6 +362,7 @@ namespace ERPAPI.Controllers
         }
 
         // PUT: api/User/updateProfilePicture/{userId}
+        [Authorize]
         [HttpPut("updateProfilePicture/{userId}")]
         public IActionResult UpdateProfilePicture(int userId)
         {
@@ -403,6 +417,7 @@ namespace ERPAPI.Controllers
 
 
         // DELETE: api/User/deleteProfilePicture/{userId}
+        [Authorize]
         [HttpDelete("deleteProfilePicture/{userId}")]
         public IActionResult DeleteProfilePicture(int userId)
         {
@@ -445,6 +460,7 @@ namespace ERPAPI.Controllers
         }
 
         // PUT: api/User/edit/{id}
+        [Authorize]
         [HttpPut("edit/{id}")]
         public IActionResult EditUser(int id, [FromBody] User updatedUser)
         {
@@ -480,6 +496,7 @@ namespace ERPAPI.Controllers
 
 
         // DELETE: api/User/delete/{id}
+        [Authorize]
         [HttpDelete("delete/{id}")]
         public IActionResult DeleteUser(int id)
         {
@@ -517,6 +534,7 @@ namespace ERPAPI.Controllers
             }
         }
 
+        [Authorize]
         [HttpPost("UnlockScreenByPin")]
         public async Task<IActionResult> UnlockScreenByPin([FromBody] PinUnlockRequest request)
         {
@@ -566,6 +584,7 @@ namespace ERPAPI.Controllers
         }
 
 
+        [Authorize]
         [HttpPut("ChangeScreenLockPin")]
         public async Task<IActionResult> ChangeScreenLockPin([FromBody] ChangePinRequest request)
         {

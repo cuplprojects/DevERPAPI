@@ -20,7 +20,7 @@ namespace ERPAPI.Data
         public DbSet<Transaction> Transaction { get; set; }
         public DbSet<Camera> Camera { get; set; }
         public DbSet<Alarm> Alarm { get; set; }
-
+        public DbSet<QpMaster> QpMasters { get; set; }
         public DbSet<Message> Message { get; set; }
         public DbSet<TextLabel> TextLabel { get; set; }
 
@@ -43,8 +43,9 @@ namespace ERPAPI.Data
         public DbSet<Session> Sessions { get; set; }
         public DbSet<Subject> Subjects { get; set; }
         public DbSet<Language> Languages { get; set; }
-
-
+        public DbSet<Display> Displays { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
+        public DbSet<UserDisplay> UserDisplays { get; set; }
 
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
         {

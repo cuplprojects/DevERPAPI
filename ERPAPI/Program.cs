@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.Text;
 using ERPAPI.Data;
+using ERPAPI.Service.ProjectTransaction;
 
 
 
@@ -22,10 +23,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseMySql(builder.Configuration.GetConnectionString("DefaultConnection"),
     new MySqlServerVersion(new Version(8, 0, 23))));
 builder.Services.AddScoped<ILoggerService, LoggerService>();
-builder.Services.AddScoped<IProjectService, ProjectService>();
-builder.Services.AddScoped<IProjectProcessService, ProjectProcessService>();
-builder.Services.AddScoped<IQuantitySheetService, QuantitySheetService>();
-builder.Services.AddScoped<ITransactionService, TransactionService>();
+builder.Services.AddScoped<ProjectService.Services.ProjectService>();
+builder.Services.AddScoped<IProjectTransactionService, ProjectTransactionService>();
 
 
 
