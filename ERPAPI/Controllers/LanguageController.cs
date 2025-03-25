@@ -83,18 +83,36 @@ namespace ERPAPI.Controllers
         }
 
         [HttpGet("Language")]
-        public async Task<ActionResult<IEnumerable<Language>>> GetLanguageId(string language)
+        public async Task<ActionResult<IEnumerable<int>>> GetLanguageId(string language)
         {
-            var languages = await _context.Languages
-                  .Where(c => c.Languages == language)
-                  .Select(c => c.LanguageId)
-                  .FirstOrDefaultAsync();
+            // Split the input string by '+' to get the individual languages
+            var languages = language.Split('+');
+            var languageIds = new List<int>();
 
-            if (languages == null)
-                return NotFound("Language not found.");
+            // Loop through each language in the array
+            foreach (var item in languages)
+            {
+                // Trim any unnecessary spaces from each language name
+                var trimmedLanguage = item.Trim();
 
-            return Ok(languages);
+                // Query the database for the LanguageId of the current language
+                var languageId = await _context.Languages
+                    .Where(c => c.Languages == trimmedLanguage)
+                    .Select(c => c.LanguageId)
+                    .FirstOrDefaultAsync();
+
+                // If the language was not found, return a NotFound response
+                if (languageId == 0)
+                    return NotFound($"Language '{trimmedLanguage}' not found.");
+
+                // Add the found LanguageId to the result list
+                languageIds.Add(languageId);
+            }
+
+            // Return the list of LanguageIds
+            return Ok(languageIds);
         }
+
 
     }
 }

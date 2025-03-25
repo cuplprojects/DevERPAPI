@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using ERPAPI.Model;
 using ERPAPI.Data;
+using ERPAPI.Service;
 
 namespace ERPAPI.Controllers
 {
@@ -12,10 +13,12 @@ namespace ERPAPI.Controllers
     public class SubjectController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly ILoggerService _loggerService;
 
-        public SubjectController(AppDbContext context)
+        public SubjectController(AppDbContext context, ILoggerService loggerService)
         {
             _context = context;
+            _loggerService = loggerService;
         }
 
         // POST: api/Subject
@@ -78,8 +81,19 @@ namespace ERPAPI.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAllSubjects()
         {
-            var subjects = await _context.Subjects.ToListAsync();
-            return Ok(subjects);
+            try
+            {
+                var subjects = await _context.Subjects.ToListAsync();
+                return Ok(subjects);
+            }
+            catch (Exception ex)
+            {
+                // Log the exception
+                _loggerService.LogError(ex.Message, "An error occurred while fetching subjects.", "SubjectController");
+
+                // Return a 500 Internal Server Error response with a user-friendly message
+                return StatusCode(500, "Internal server error. Please try again later.");
+            }
         }
 
         [HttpGet("Subject")]
