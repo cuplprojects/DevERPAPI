@@ -27,6 +27,41 @@ public class QuantitySheetController : ControllerBase
         _loggerService = loggerService;
     }
 
+    [HttpGet("byProject/{projectId}")]
+    public async Task<ActionResult<IEnumerable<QuantitySheet>>> GetByProjectId(int projectId)
+    {
+        var result = await _context.QuantitySheets
+            .Where(q => q.ProjectId == projectId)
+            .Select(q => new QuantitySheet
+            {
+                QuantitySheetId = q.QuantitySheetId,
+                CatchNo = q.CatchNo ?? string.Empty,
+                ExamDate = q.ExamDate ?? string.Empty,
+                ExamTime = q.ExamTime ?? string.Empty,
+                InnerEnvelope = q.InnerEnvelope ?? string.Empty,
+                LotNo = q.LotNo ?? string.Empty,
+                PaperNumber = q.PaperNumber ?? string.Empty,
+                PaperTitle = q.PaperTitle ?? string.Empty,
+                Duration = q.Duration ?? string.Empty,
+                Language = q.Language ?? string.Empty,
+                NEPCode = q.NEPCode ?? string.Empty,
+                PrivateCode = q.PrivateCode ?? string.Empty
+            })
+            .ToListAsync();
+
+        if (result == null || result.Count == 0)
+        {
+            return NotFound($"No QuantitySheets found for ProjectId {projectId}");
+        }
+
+        return Ok(result);
+    }
+
+
+
+
+   
+
     [Authorize]
     [HttpPost]
     public async Task<IActionResult> Post([FromBody] List<QuantitySheet> newSheets)

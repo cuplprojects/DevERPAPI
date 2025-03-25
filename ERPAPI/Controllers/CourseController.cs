@@ -19,20 +19,20 @@ namespace ERPAPI.Controllers
         }
 
         // GET: api/Course
-        //[httpget]
-        //public async task<actionresult<ienumerable<course>>> getcourse()
-        //{
-        //    try
-        //    {
-        //        var course = await _context.courses.tolistasync();
-        //        return course;
-        //    }
-        //    catch (exception)
-        //    {
+  /*      [HttpGet]
+        public async Task<ActionResult<IEnumerable<Course>>> GetCourse()
+        {
+            try
+            {
+                var course = await _context.Courses.ToListAsync();
+                return course;
+            }
+            catch (Exception)
+            {
 
-        //        return statuscode(500, "internal server error");
-        //    }
-        //}
+                return StatusCode(500, "Internal server error");
+            }
+        }*/
 
         // POST: api/Course
         [HttpPost]
