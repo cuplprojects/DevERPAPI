@@ -19,7 +19,7 @@ namespace ERPAPI.Model
 
         public string? QuantityThreshold { get; set; }
         public int SessionId { get; set; }
-        public int ExamTypeId { get; set; }
+        public List<int> ExamTypeId { get; set; }
 
     }
 
