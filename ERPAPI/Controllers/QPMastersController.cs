@@ -69,10 +69,10 @@ namespace ERPAPI.Controllers
         {
             var columnNames = typeof(QpMaster).GetProperties()
                 .Where(prop => prop.Name != "QPMasterId" &&
-                               prop.Name != "GroupId" &&
-                               prop.Name != "CustomizedField1" &&
-                               prop.Name != "CustomizedField2" &&
-                               prop.Name != "CustomizedField3")
+                    prop.Name != "GroupId" &&
+                    prop.Name != "CustomizedField1" &&
+                    prop.Name != "CustomizedField2" &&
+                    prop.Name != "CustomizedField3")
                 .Select(prop => prop.Name)
                 .ToList();
 
@@ -208,10 +208,10 @@ namespace ERPAPI.Controllers
 
         [HttpGet("Filter")]
         public async Task<IActionResult> GetQpMasters(
-     [FromQuery] int? groupId = null,
-     [FromQuery] int? typeId = null,
-     [FromQuery] int? courseId = null,
-     [FromQuery] List<int> examTypeId = null) // Accepting array input
+            [FromQuery] int? groupId = null,
+            [FromQuery] int? typeId = null,
+            [FromQuery] int? courseId = null,
+            [FromQuery] List<int> examTypeId = null) // Accepting array input
         {
             var query = from qp in _context.QpMasters
                         join grp in _context.Groups on qp.GroupId equals grp.Id into grpJoin
@@ -247,7 +247,7 @@ namespace ERPAPI.Controllers
 
             if (groupId.HasValue)
                 query = query.Where(q => q.GroupName != null &&
-                                         _context.Groups.Any(g => g.Id == groupId && g.Name == q.GroupName));
+                    _context.Groups.Any(g => g.Id == groupId && g.Name == q.GroupName));
 
             if (typeId.HasValue)
                 query = query.Where(q => _context.ExamTypes.Any(t => t.ExamTypeId == typeId && t.Type == q.Type));
@@ -267,10 +267,10 @@ namespace ERPAPI.Controllers
 
         [HttpGet("SearchInQpMaster")]
         public async Task<IActionResult> SearchInQpMaster(
-     [FromQuery] string search,
-     [FromQuery] int? groupId, // Add groupId as a nullable int
-     [FromQuery] int page = 1,
-     [FromQuery] int pageSize = 5)
+            [FromQuery] string search,
+            [FromQuery] int? groupId, // Add groupId as a nullable int
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 5)
         {
             if (string.IsNullOrWhiteSpace(search))
             {
@@ -282,10 +282,10 @@ namespace ERPAPI.Controllers
                 join crs in _context.Courses on qp.CourseId equals crs.CourseId into crsJoin
                 from crs in crsJoin.DefaultIfEmpty()
                 where (qp.NEPCode.Contains(search) ||
-                       qp.PrivateCode.Contains(search) ||
-                       qp.PaperNumber.Contains(search) ||
-                       qp.PaperTitle.Contains(search)) &&
-                      (!groupId.HasValue || qp.GroupId == groupId) // Add groupId filter
+                    qp.PrivateCode.Contains(search) ||
+                    qp.PaperNumber.Contains(search) ||
+                    qp.PaperTitle.Contains(search)) &&
+                    (!groupId.HasValue || qp.GroupId == groupId) // Add groupId filter
                 select new
                 {
                     qp.QPMasterId,
@@ -357,123 +357,123 @@ namespace ERPAPI.Controllers
         }
 
 
-       /* [HttpPost("InsertIntoQuantitySheet")]
-        public async Task<IActionResult> InsertIntoQuantitySheet([FromBody] InsertQuantitySheetRequest request)
-        {
-            // Retrieve data from QpMaster table
-            var qpMaster = await _context.QpMasters
-                .Where(qp => qp.QPMasterId == request.QPMasterId)
-                .Select(qp => new
-                {
-                    qp.NEPCode,
-                    qp.PrivateCode,
-                    qp.PaperNumber,
-                    qp.PaperTitle,
-                    qp.CourseId,
-                    qp.MaxMarks,
-                    qp.Duration,
-                    qp.ExamTypeId,
-                    qp.SubjectId,
-                    qp.LanguageId // Assuming LanguageId is a list of integers
-                })
-                .FirstOrDefaultAsync();
+        /* [HttpPost("InsertIntoQuantitySheet")]
+         public async Task<IActionResult> InsertIntoQuantitySheet([FromBody] InsertQuantitySheetRequest request)
+         {
+             // Retrieve data from QpMaster table
+             var qpMaster = await _context.QpMasters
+                 .Where(qp => qp.QPMasterId == request.QPMasterId)
+                 .Select(qp => new
+                 {
+                     qp.NEPCode,
+                     qp.PrivateCode,
+                     qp.PaperNumber,
+                     qp.PaperTitle,
+                     qp.CourseId,
+                     qp.MaxMarks,
+                     qp.Duration,
+                     qp.ExamTypeId,
+                     qp.SubjectId,
+                     qp.LanguageId // Assuming LanguageId is a list of integers
+                 })
+                 .FirstOrDefaultAsync();
 
-            if (qpMaster == null)
-            {
-                return NotFound("QPMaster not found.");
-            }
+             if (qpMaster == null)
+             {
+                 return NotFound("QPMaster not found.");
+             }
 
-            // Create a new QuantitySheet object and map the relevant fields
-            var quantitySheet = new QuantitySheet
-            {
-                NEPCode = qpMaster.NEPCode,
-                PrivateCode = qpMaster.PrivateCode,
-                PaperNumber = qpMaster.PaperNumber,
-                PaperTitle = qpMaster.PaperTitle,
-                CourseId = qpMaster.CourseId.Value, // Ensure CourseId is not null
-                MaxMarks = qpMaster.MaxMarks.Value, // Ensure MaxMarks is not null
-                Duration = qpMaster.Duration,
-                ExamTypeId = qpMaster.ExamTypeId.Value, // Ensure ExamTypeId is not null
-                SubjectId = qpMaster.SubjectId.Value, // Ensure SubjectId is not null
-                Language = string.Join(", ", qpMaster.LanguageId ?? new List<int>()), // Convert list to string
-                QPId = request.QPMasterId, // Assuming QPId in QuantitySheet corresponds to QPMasterId
+             // Create a new QuantitySheet object and map the relevant fields
+             var quantitySheet = new QuantitySheet
+             {
+                 NEPCode = qpMaster.NEPCode,
+                 PrivateCode = qpMaster.PrivateCode,
+                 PaperNumber = qpMaster.PaperNumber,
+                 PaperTitle = qpMaster.PaperTitle,
+                 CourseId = qpMaster.CourseId.Value, // Ensure CourseId is not null
+                 MaxMarks = qpMaster.MaxMarks.Value, // Ensure MaxMarks is not null
+                 Duration = qpMaster.Duration,
+                 ExamTypeId = qpMaster.ExamTypeId.Value, // Ensure ExamTypeId is not null
+                 SubjectId = qpMaster.SubjectId.Value, // Ensure SubjectId is not null
+                 Language = string.Join(", ", qpMaster.LanguageId ?? new List<int>()), // Convert list to string
+                 QPId = request.QPMasterId, // Assuming QPId in QuantitySheet corresponds to QPMasterId
 
-                // Map the additional field from the request
-                CatchNo = request.CatchNo
-            };
+                 // Map the additional field from the request
+                 CatchNo = request.CatchNo
+             };
 
-            // Insert the new QuantitySheet record into the database
-            _context.QuantitySheets.Add(quantitySheet);
-            await _context.SaveChangesAsync();
+             // Insert the new QuantitySheet record into the database
+             _context.QuantitySheets.Add(quantitySheet);
+             await _context.SaveChangesAsync();
 
-            return Ok("Data inserted into QuantitySheet successfully.");
-        }
+             return Ok("Data inserted into QuantitySheet successfully.");
+         }
 
-        // Define a request model to capture the additional field
-        public class InsertQuantitySheetRequest
-        {
-            public int QPMasterId { get; set; }
-            public string CatchNo { get; set; }
-        }*/
+         // Define a request model to capture the additional field
+         public class InsertQuantitySheetRequest
+         {
+             public int QPMasterId { get; set; }
+             public string CatchNo { get; set; }
+         }*/
 
 
+
+        /* [HttpPost("InsertIntoQuantitySheetByCourseId")]
+         public async Task<IActionResult> InsertIntoQuantitySheetByCourseId([FromBody] int courseId)
+         {
+             // Retrieve data from QpMaster table based on courseId
+             var qpMasters = await _context.QpMasters
+                 .Where(qp => qp.CourseId == courseId)
+                 .Select(qp => new
+                 {
+                     qp.QPMasterId, // Include QPMasterId in the selection
+                     qp.NEPCode,
+                     qp.PrivateCode,
+                     qp.PaperNumber,
+                     qp.PaperTitle,
+                     qp.CourseId,
+                     qp.MaxMarks,
+                     qp.Duration,
+                     qp.ExamTypeId,
+                     qp.SubjectId,
+                     qp.LanguageId // Assuming LanguageId is a list of integers
+                 })
+                 .ToListAsync();
+
+             if (qpMasters == null || !qpMasters.Any())
+             {
+                 return NotFound("No QPMasters found for the given course ID.");
+             }
+
+             // Iterate over each QpMaster and insert into QuantitySheet
+             foreach (var qpMaster in qpMasters)
+             {
+                 // Create a new QuantitySheet object and map the relevant fields
+                 var quantitySheet = new QuantitySheet
+                 {
+                     NEPCode = qpMaster.NEPCode,
+                     PrivateCode = qpMaster.PrivateCode,
+                     PaperNumber = qpMaster.PaperNumber,
+                     PaperTitle = qpMaster.PaperTitle,
+                     CourseId = qpMaster.CourseId.Value, // Ensure CourseId is not null
+                     MaxMarks = qpMaster.MaxMarks.Value, // Ensure MaxMarks is not null
+                     Duration = qpMaster.Duration,
+                     ExamTypeId = qpMaster.ExamTypeId.Value, // Ensure ExamTypeId is not null
+                     SubjectId = qpMaster.SubjectId.Value, // Ensure SubjectId is not null
+                     Language = string.Join(", ", qpMaster.LanguageId ?? new List<int>()), // Convert list to string
+                     ProcessId = new List<int>(),
+                     QPId = qpMaster.QPMasterId // Use QPMasterId from the selection
+                 };
+
+                 // Insert the new QuantitySheet record into the database
+                 _context.QuantitySheets.Add(quantitySheet);
+                 await _context.SaveChangesAsync();
+             }
+
+             return Ok("Data inserted into QuantitySheet successfully.");
+         }*/
 
         [HttpPost("InsertIntoQuantitySheetByCourseId")]
-        public async Task<IActionResult> InsertIntoQuantitySheetByCourseId([FromBody] int courseId)
-        {
-            // Retrieve data from QpMaster table based on courseId
-            var qpMasters = await _context.QpMasters
-                .Where(qp => qp.CourseId == courseId)
-                .Select(qp => new
-                {
-                    qp.QPMasterId, // Include QPMasterId in the selection
-                    qp.NEPCode,
-                    qp.PrivateCode,
-                    qp.PaperNumber,
-                    qp.PaperTitle,
-                    qp.CourseId,
-                    qp.MaxMarks,
-                    qp.Duration,
-                    qp.ExamTypeId,
-                    qp.SubjectId,
-                    qp.LanguageId // Assuming LanguageId is a list of integers
-                })
-                .ToListAsync();
-
-            if (qpMasters == null || !qpMasters.Any())
-            {
-                return NotFound("No QPMasters found for the given course ID.");
-            }
-
-            // Iterate over each QpMaster and insert into QuantitySheet
-            foreach (var qpMaster in qpMasters)
-            {
-                // Create a new QuantitySheet object and map the relevant fields
-                var quantitySheet = new QuantitySheet
-                {
-                    NEPCode = qpMaster.NEPCode,
-                    PrivateCode = qpMaster.PrivateCode,
-                    PaperNumber = qpMaster.PaperNumber,
-                    PaperTitle = qpMaster.PaperTitle,
-                    CourseId = qpMaster.CourseId.Value, // Ensure CourseId is not null
-                    MaxMarks = qpMaster.MaxMarks.Value, // Ensure MaxMarks is not null
-                    Duration = qpMaster.Duration,
-                    ExamTypeId = qpMaster.ExamTypeId.Value, // Ensure ExamTypeId is not null
-                    SubjectId = qpMaster.SubjectId.Value, // Ensure SubjectId is not null
-                    Language = string.Join(", ", qpMaster.LanguageId ?? new List<int>()), // Convert list to string
-                    ProcessId = new List<int>(),
-                    QPId = qpMaster.QPMasterId // Use QPMasterId from the selection
-                };
-
-                // Insert the new QuantitySheet record into the database
-                _context.QuantitySheets.Add(quantitySheet);
-                await _context.SaveChangesAsync();
-            }
-
-            return Ok("Data inserted into QuantitySheet successfully.");
-        }
-
-/*        [HttpPost("InsertIntoQuantitySheetByCourseId")]
         public async Task<IActionResult> InsertIntoQuantitySheetByCourseId([FromBody] InsertQuantitySheetByCourseIdRequest request)
         {
             // Retrieve data from QpMaster table based on courseId
@@ -535,7 +535,7 @@ namespace ERPAPI.Controllers
         {
             public int CourseId { get; set; }
             public string CatchNo { get; set; }
-        }*/
+        }
 
 
     }
