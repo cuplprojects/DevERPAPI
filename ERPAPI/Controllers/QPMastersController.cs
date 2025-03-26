@@ -274,8 +274,13 @@ namespace ERPAPI.Controllers
         {
             if (string.IsNullOrWhiteSpace(search))
             {
-                return BadRequest("");
+                return BadRequest("Search query cannot be null or empty.");
             }
+
+            // Get the list of QPIds from QuantitySheet table
+            var existingQPIds = await _context.QuantitySheets
+                .Select(qs => qs.QPId)
+                .ToListAsync();
 
             var query = (
                 from qp in _context.QpMasters
@@ -285,7 +290,8 @@ namespace ERPAPI.Controllers
                        qp.PrivateCode.Contains(search) ||
                        qp.PaperNumber.Contains(search) ||
                        qp.PaperTitle.Contains(search)) &&
-                      (!groupId.HasValue || qp.GroupId == groupId) // Add groupId filter
+                      (!groupId.HasValue || qp.GroupId == groupId) && // Add groupId filter
+                      !existingQPIds.Contains(qp.QPMasterId) // Exclude QPMasterIds that are already in QuantitySheet
                 select new
                 {
                     qp.QPMasterId,
@@ -304,6 +310,7 @@ namespace ERPAPI.Controllers
 
             return Ok(result);
         }
+
 
 
 
