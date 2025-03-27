@@ -352,7 +352,7 @@ namespace ERPAPI.Controllers
                 Duration = qpMaster.Duration,
                 ExamTypeId = qpMaster.ExamTypeId.Value, // Ensure ExamTypeId is not null
                 SubjectId = qpMaster.SubjectId.Value, // Ensure SubjectId is not null
-                Language = string.Join(", ", qpMaster.LanguageId ?? new List<int>()), // Convert list to string
+                LanguageId = qpMaster.LanguageId ?? new List<int>(), // Convert list to string
                 QPId = qpMasterId, // Assuming QPId in QuantitySheet corresponds to QPMasterId
                 ProjectId = projectId // Assign ProjectId to QuantitySheet
             };
@@ -472,7 +472,7 @@ namespace ERPAPI.Controllers
                     Duration = qpMaster.Duration, // Assuming Duration is non-nullable
                     ExamTypeId = qpMaster.ExamTypeId ?? 0, // Ensure non-null value
                     SubjectId = qpMaster.SubjectId ?? 0, // Ensure non-null value
-                    Language = string.Join(", ", qpMaster.LanguageId ?? new List<int>()), // Convert list to string
+                    LanguageId = qpMaster.LanguageId ?? new List<int>(), // Convert list to string
                     ProcessId = new List<int>(),
                     QPId = qpMaster.QPMasterId, // Assuming QPMasterId is never null
                     ProjectId = projectId // Assign ProjectId to QuantitySheet
@@ -603,7 +603,7 @@ namespace ERPAPI.Controllers
                     Duration = qpMaster.Duration, // Assuming Duration is non-nullable
                     ExamTypeId = qpMaster.ExamTypeId ?? 0, // Ensure non-null value
                     SubjectId = qpMaster.SubjectId ?? 0, // Ensure non-null value
-                    Language = string.Join(", ", qpMaster.LanguageId ?? new List<int>()), // Convert list to string
+                    LanguageId = qpMaster.LanguageId ?? new List<int>(), // Convert list to string
                     ProcessId = new List<int>(),
                     QPId = qpMaster.QPMasterId, // Assuming QPMasterId is never null
                     ProjectId = projectId // Assign ProjectId to QuantitySheet
