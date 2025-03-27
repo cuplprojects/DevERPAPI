@@ -31,23 +31,57 @@ public class QuantitySheetController : ControllerBase
     public async Task<ActionResult<IEnumerable<QuantitySheet>>> GetByProjectId(int projectId)
     {
         var result = await _context.QuantitySheets
-            .Where(q => q.ProjectId == projectId)
-            .Select(q => new QuantitySheet
-            {
-                QuantitySheetId = q.QuantitySheetId,
-                CatchNo = q.CatchNo ?? string.Empty,
-                ExamDate = q.ExamDate ?? string.Empty,
-                ExamTime = q.ExamTime ?? string.Empty,
-                InnerEnvelope = q.InnerEnvelope ?? string.Empty,
-                LotNo = q.LotNo ?? string.Empty,
-                PaperNumber = q.PaperNumber ?? string.Empty,
-                PaperTitle = q.PaperTitle ?? string.Empty,
-                Duration = q.Duration ?? string.Empty,
-                Language = q.Language ?? string.Empty,
-                NEPCode = q.NEPCode ?? string.Empty,
-                PrivateCode = q.PrivateCode ?? string.Empty
-            })
-            .ToListAsync();
+     .Where(q => q.ProjectId == projectId)
+     .Select(q => new
+     {
+         QuantitySheetId = q.QuantitySheetId,
+         CatchNo = q.CatchNo ?? string.Empty,
+         ExamDate = q.ExamDate ?? string.Empty,
+         ExamTime = q.ExamTime ?? string.Empty,
+         InnerEnvelope = q.InnerEnvelope ?? string.Empty,
+         LotNo = q.LotNo ?? string.Empty,
+         PaperNumber = q.PaperNumber ?? string.Empty,
+         PaperTitle = q.PaperTitle ?? string.Empty,
+         Duration = q.Duration ?? string.Empty,
+         /*Languages = _context.Languages
+                .Where(l => q.LanguageId.Contains(l.LanguageId))
+                .Select(l => l.Languages)
+                .ToList() // Convert to List
+                .DefaultIfEmpty() // Ensure at least an empty list exists
+                .Any() ? _context.Languages
+                            .Where(l => q.LanguageId.Contains(l.LanguageId))
+                            .Select(l => l.Languages)
+                            .ToList()
+                      : null, // If empty, set to null*/
+
+         NEPCode = q.NEPCode ?? string.Empty,
+         PrivateCode = q.PrivateCode ?? string.Empty,
+         CourseId = q.CourseId,
+         CourseName = _context.Courses
+                     .Where(c => c.CourseId == q.CourseId)
+                     .Select(c => c.CourseName)
+                     .FirstOrDefault() ?? string.Empty,
+         SubjectId = q.SubjectId,
+         SubjectName = _context.Subjects
+                     .Where(s => s.SubjectId == q.SubjectId)
+                     .Select(s => s.SubjectName)
+                     .FirstOrDefault() ?? string.Empty,
+         ExamTypeId = q.ExamTypeId,
+         MaxMarks = q.MaxMarks,
+         Pages = q.Pages,
+         PercentageCatch = q.PercentageCatch,
+         ProcessId = q.ProcessId,
+         ProjectId = q.ProjectId,
+         Quantity = q.Quantity,
+         Status = q.Status,
+         StopCatch = q.StopCatch,
+         TTFStatus = q.TTFStatus,
+         MSSStatus = q.MSSStatus,
+         QPId = q.QPId,
+         OuterEnvelope = q.OuterEnvelope,
+     })
+     .ToListAsync();
+
 
         if (result == null || result.Count == 0)
         {
@@ -60,7 +94,7 @@ public class QuantitySheetController : ControllerBase
 
 
 
-   
+
 
     [Authorize]
     [HttpPost]
@@ -767,7 +801,7 @@ public class QuantitySheetController : ControllerBase
                 r.Duration,
                 r.MSSStatus,
                 r.TTFStatus,
-                r.Language,
+                r.LanguageId,
                 r.ExamTypeId,
                 r.QPId,
                 r.NEPCode,
@@ -833,7 +867,7 @@ public class QuantitySheetController : ControllerBase
                           current.Duration,
                           current.MSSStatus,
                           current.TTFStatus,
-                          current.Language,
+                          current.LanguageId,
                           current.ExamTypeId,
                           current.Status,
                           IsExamDateOverlapped = lotNo != "1" && previousExamDates.Contains(current.ExamDate)
@@ -860,7 +894,7 @@ public class QuantitySheetController : ControllerBase
                 r.Duration,
                 r.MSSStatus,
                 r.TTFStatus,
-                r.Language,
+                r.LanguageId,
                 r.ExamTypeId,
                 r.PaperNumber,
                 r.ExamDate,
@@ -940,7 +974,7 @@ public class QuantitySheetController : ControllerBase
                           current.Duration,
                           current.MSSStatus,
                           current.TTFStatus,
-                          current.Language,
+                          current.LanguageId,
                           current.ExamTypeId,
                           current.Status,
                           IsExamDateOverlapped = lotNo != "1" && previousExamDates.Contains(current.ExamDate)

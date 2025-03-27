@@ -37,7 +37,7 @@ namespace ERPAPI.Model
 
         [StringLength(30)]
         public string? Duration { get; set; }
-        public string? Language { get; set; }
+        public List<int>? LanguageId { get; set; }
         public int ExamTypeId { get; set; }
         [StringLength(45)]
         public string? NEPCode { get; set; }
