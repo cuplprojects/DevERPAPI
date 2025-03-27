@@ -274,8 +274,13 @@ namespace ERPAPI.Controllers
         {
             if (string.IsNullOrWhiteSpace(search))
             {
-                return BadRequest("");
+                return BadRequest("Search query cannot be null or empty.");
             }
+
+            // Get the list of QPIds from QuantitySheet table
+            var existingQPIds = await _context.QuantitySheets
+                .Select(qs => qs.QPId)
+                .ToListAsync();
 
             var query = (
                 from qp in _context.QpMasters
@@ -285,7 +290,8 @@ namespace ERPAPI.Controllers
                        qp.PrivateCode.Contains(search) ||
                        qp.PaperNumber.Contains(search) ||
                        qp.PaperTitle.Contains(search)) &&
-                      (!groupId.HasValue || qp.GroupId == groupId) // Add groupId filter
+                      (!groupId.HasValue || qp.GroupId == groupId) && // Add groupId filter
+                      !existingQPIds.Contains(qp.QPMasterId) // Exclude QPMasterIds that are already in QuantitySheet
                 select new
                 {
                     qp.QPMasterId,
@@ -304,6 +310,7 @@ namespace ERPAPI.Controllers
 
             return Ok(result);
         }
+
 
 
 
@@ -345,8 +352,10 @@ namespace ERPAPI.Controllers
                 Duration = qpMaster.Duration,
                 ExamTypeId = qpMaster.ExamTypeId.Value, // Ensure ExamTypeId is not null
                 SubjectId = qpMaster.SubjectId.Value, // Ensure SubjectId is not null
+
                /* Language = string.Join(", ", qpMaster.LanguageId ?? new List<int>()),*/ // Convert list to string
                 LanguageId = qpMaster.LanguageId ?? new List<int>(),
+
 
                 QPId = qpMasterId, // Assuming QPId in QuantitySheet corresponds to QPMasterId
                 ProjectId = projectId // Assign ProjectId to QuantitySheet
@@ -469,6 +478,7 @@ namespace ERPAPI.Controllers
                     SubjectId = qpMaster.SubjectId ?? 0, // Ensure non-null value
                     /*Language = string.Join(", ", qpMaster.LanguageId ?? new List<int>()), */// Convert list to string
                     LanguageId = qpMaster.LanguageId ?? new List<int>(),
+
                     ProcessId = new List<int>(),
                     QPId = qpMaster.QPMasterId, // Assuming QPMasterId is never null
                     ProjectId = projectId // Assign ProjectId to QuantitySheet
@@ -612,7 +622,37 @@ namespace ERPAPI.Controllers
             return Ok("Data inserted into QuantitySheet successfully.");
         }
 
+        [HttpGet("GetExamTypeNamesByProjectId/{projectId}")]
+        public async Task<IActionResult> GetExamTypeNamesByProjectId(int projectId)
+        {
+            try
+            {
+                // Get the project by projectId
+                var project = await _context.Projects
+                    .Where(p => p.ProjectId == projectId)
+                    .Select(p => new { p.ExamTypeId })
+                    .FirstOrDefaultAsync();
 
+                if (project == null)
+                {
+                    _loggerService.LogError("Project not found.", null, $"ProjectId: {projectId}");
+                    return NotFound("Project not found.");
+                }
+
+                // Get the exam type names for the examTypeIds
+                var examTypeNames = await _context.ExamTypes
+                    .Where(et => project.ExamTypeId.Contains(et.ExamTypeId))
+                    .Select(et => et.TypeName)
+                    .ToListAsync();
+
+                return Ok(examTypeNames);
+            }
+            catch (Exception ex)
+            {
+                _loggerService.LogError(ex.Message, ex.StackTrace, "Error occurred while fetching exam type names.");
+                return StatusCode(500, "Internal server error.");
+            }
+        }
 
     }
 }
