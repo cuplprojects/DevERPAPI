@@ -616,7 +616,37 @@ namespace ERPAPI.Controllers
             return Ok("Data inserted into QuantitySheet successfully.");
         }
 
+        [HttpGet("GetExamTypeNamesByProjectId/{projectId}")]
+        public async Task<IActionResult> GetExamTypeNamesByProjectId(int projectId)
+        {
+            try
+            {
+                // Get the project by projectId
+                var project = await _context.Projects
+                    .Where(p => p.ProjectId == projectId)
+                    .Select(p => new { p.ExamTypeId })
+                    .FirstOrDefaultAsync();
 
+                if (project == null)
+                {
+                    _loggerService.LogError("Project not found.", null, $"ProjectId: {projectId}");
+                    return NotFound("Project not found.");
+                }
+
+                // Get the exam type names for the examTypeIds
+                var examTypeNames = await _context.ExamTypes
+                    .Where(et => project.ExamTypeId.Contains(et.ExamTypeId))
+                    .Select(et => et.TypeName)
+                    .ToListAsync();
+
+                return Ok(examTypeNames);
+            }
+            catch (Exception ex)
+            {
+                _loggerService.LogError(ex.Message, ex.StackTrace, "Error occurred while fetching exam type names.");
+                return StatusCode(500, "Internal server error.");
+            }
+        }
 
     }
 }
