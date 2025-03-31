@@ -541,11 +541,47 @@ public class QuantitySheetController : ControllerBase
         return NoContent();
     }
 
+    [Authorize]
+    [HttpPut("UpdateStatus")]
+    public async Task<IActionResult> UpdateMSSStatus(int id, QuantitySheet quantity)
+    {
+        // Validate if the received id matches the quantity's id
+        if (id != quantity.QuantitySheetId)
+        {
+            return BadRequest();
+        }
 
+        // Retrieve the QuantitySheet from the database by the provided id
+        var existingQuantitySheet = await _context.QuantitySheets.FindAsync(id);
+        if (existingQuantitySheet == null)
+        {
+            return NotFound();
+        }
 
+        // Update the MSSStatus to 2
+        existingQuantitySheet.MSSStatus = 2;
 
+        // Save changes to the database
+        try
+        {
+            await _context.SaveChangesAsync(); // Save the changes
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (!QuantitySheetExists(id))
+            {
+                return NotFound();
+            }
+            else
+            {
+                throw;
+            }
+        }
 
+        return NoContent(); // Return 204 No Content status to indicate success
+    }
 
+  
     [Authorize]
     [HttpPut]
     public async Task<IActionResult> UpdateQuantitySheet([FromBody] List<QuantitySheet> newSheets)

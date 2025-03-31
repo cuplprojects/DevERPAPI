@@ -132,7 +132,7 @@ namespace ERPAPI.Controllers
         {
             // Fetch QuantitySheets for the given projectId
             var quantitySheets = await _context.QuantitySheets
-                                                .Where(q => q.ProjectId == projectId)
+                                                .Where(q => q.ProjectId == projectId && q.MSSStatus ==2)
                                                 .ToListAsync();
 
             var project = await _context.Projects
