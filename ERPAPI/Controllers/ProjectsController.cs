@@ -67,6 +67,7 @@ namespace ERPAPI.Controllers
                                              m.Description,
                                              m.NoOfSeries,
                                              m.SeriesName,
+                                             m.ExamTypeId,
                                              ProjectType = p.Types
                                          }).FirstOrDefaultAsync(); // Use FirstOrDefault to get a single project
 

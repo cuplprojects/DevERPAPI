@@ -18,21 +18,6 @@ namespace ERPAPI.Controllers
             _context = context;
         }
 
-        // GET: api/Course
-  /*      [HttpGet]
-        public async Task<ActionResult<IEnumerable<Course>>> GetCourse()
-        {
-            try
-            {
-                var course = await _context.Courses.ToListAsync();
-                return course;
-            }
-            catch (Exception)
-            {
-
-                return StatusCode(500, "Internal server error");
-            }
-        }*/
 
         // POST: api/Course
         [HttpPost]
@@ -89,15 +74,12 @@ namespace ERPAPI.Controllers
             return Ok(course);
         }
 
-
-        // GET: api/Course
         [HttpGet]
         public async Task<IActionResult> GetAllCourses()
         {
             var courses = await _context.Courses.ToListAsync();
             return Ok(courses);
         }
-
 
         [HttpGet("GetCourse")]
         public async Task<IActionResult> GetCourseByName(string courseName)

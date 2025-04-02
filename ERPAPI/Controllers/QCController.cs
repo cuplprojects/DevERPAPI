@@ -105,7 +105,7 @@ namespace ERPAPI.Controllers
                              x.QuantitySheet.QuantitySheetId,
                              x.QuantitySheet.ProjectId,
                              x.QuantitySheet.CatchNo,
-                             x.QuantitySheet.Language,
+                             x.QuantitySheet.LanguageId,
                              x.QuantitySheet.MaxMarks,
                              x.QuantitySheet.Duration,
                              QCId = qc?.QCId, 
@@ -156,7 +156,7 @@ namespace ERPAPI.Controllers
                     QuantitysheetId = qs.QuantitySheetId,
                     MaxMarks = qs.MaxMarks,
                     Duration = qs.Duration,
-                    Language = qs.Language,
+                    LanguageId = qs.LanguageId,
                     Series = project.SeriesName, // Default series, adjust as needed
                     Verified = qcGroup.Any() ? new
                     {
@@ -176,7 +176,7 @@ namespace ERPAPI.Controllers
      {
          x.CatchNo,
          x.QuantitysheetId,
-         x.Language,  // Ensure Language is an array, empty if null
+         x.LanguageId,  // Ensure Language is an array, empty if null
          x.Duration,
          x.MaxMarks,
          x.Series,
