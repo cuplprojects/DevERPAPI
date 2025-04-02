@@ -345,7 +345,7 @@ namespace ERPAPI.Controllers
                 Duration = qpMaster.Duration,
                 ExamTypeId = qpMaster.ExamTypeId.Value, // Ensure ExamTypeId is not null
                 SubjectId = qpMaster.SubjectId.Value, // Ensure SubjectId is not null
-                Language = string.Join(", ", qpMaster.LanguageId ?? new List<int>()), // Convert list to string
+                //Language = string.Join(", ", qpMaster.LanguageId ?? new List<int>()), // Convert list to string
                 QPId = qpMasterId // Assuming QPId in QuantitySheet corresponds to QPMasterId
             };
 
@@ -460,7 +460,7 @@ namespace ERPAPI.Controllers
                     Duration = qpMaster.Duration,
                     ExamTypeId = qpMaster.ExamTypeId.Value, // Ensure ExamTypeId is not null
                     SubjectId = qpMaster.SubjectId.Value, // Ensure SubjectId is not null
-                    Language = string.Join(", ", qpMaster.LanguageId ?? new List<int>()), // Convert list to string
+                   // Language = string.Join(", ", qpMaster.LanguageId ?? new List<int>()), // Convert list to string
                     ProcessId = new List<int>(),
                     QPId = qpMaster.QPMasterId // Use QPMasterId from the selection
                 };
