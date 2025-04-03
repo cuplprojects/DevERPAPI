@@ -318,7 +318,7 @@ namespace ERPAPI.Controllers
 
             return Ok(result);
         }
-<<<<<<< HEAD
+
 
 
 
@@ -356,8 +356,6 @@ namespace ERPAPI.Controllers
             }
         }
 
-=======
->>>>>>> Madhavi
     }
 }
 
