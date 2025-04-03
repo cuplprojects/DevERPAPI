@@ -274,8 +274,13 @@ namespace ERPAPI.Controllers
         {
             if (string.IsNullOrWhiteSpace(search))
             {
-                return BadRequest("");
+                return BadRequest("Search query cannot be null or empty.");
             }
+
+            // Get the list of QPIds from QuantitySheet table
+            var existingQPIds = await _context.QuantitySheets
+                .Select(qs => qs.QPId)
+                .ToListAsync();
 
             var query = (
                 from qp in _context.QpMasters
@@ -289,7 +294,8 @@ namespace ERPAPI.Controllers
                        qp.PrivateCode.Contains(search) ||
                        qp.PaperNumber.Contains(search) ||
                        qp.PaperTitle.Contains(search)) &&
-                      (!groupId.HasValue || qp.GroupId == groupId) // Add groupId filter
+                      (!groupId.HasValue || qp.GroupId == groupId) && // Add groupId filter
+                      !existingQPIds.Contains(qp.QPMasterId) // Exclude QPMasterIds that are already in QuantitySheet
                 select new
                 {
                     qp.QPMasterId,
@@ -315,216 +321,39 @@ namespace ERPAPI.Controllers
 
 
 
-        [HttpPost("InsertIntoQuantitySheet")]
-        public async Task<IActionResult> InsertIntoQuantitySheet([FromBody] int qpMasterId, int projectId)
+
+      
+        [HttpGet("GetExamTypeNamesByProjectId/{projectId}")]
+        public async Task<IActionResult> GetExamTypeNamesByProjectId(int projectId)
         {
-            // Retrieve data from QpMaster table
-            var qpMaster = await _context.QpMasters
-                .Where(qp => qp.QPMasterId == qpMasterId)
-                .Select(qp => new
+            try
+            {
+                // Get the project by projectId
+                var project = await _context.Projects
+                    .Where(p => p.ProjectId == projectId)
+                    .Select(p => new { p.ExamTypeId })
+                    .FirstOrDefaultAsync();
+
+                if (project == null)
                 {
-                    qp.NEPCode,
-                    qp.PrivateCode,
-                    qp.PaperNumber,
-                    qp.PaperTitle,
-                    qp.CourseId,
-                    qp.MaxMarks,
-                    qp.Duration,
-                    qp.ExamTypeId,
-                    qp.SubjectId,
-                    qp.LanguageId // Assuming LanguageId is a list of integers
-                })
-                .FirstOrDefaultAsync();
+                    _loggerService.LogError("Project not found.", null, $"ProjectId: {projectId}");
+                    return NotFound("Project not found.");
+                }
 
-            if (qpMaster == null)
-            {
-                return NotFound("QPMaster not found.");
+                // Get the exam type names for the examTypeIds
+                var examTypeNames = await _context.ExamTypes
+                    .Where(et => project.ExamTypeId.Contains(et.ExamTypeId))
+                    .Select(et => et.TypeName)
+                    .ToListAsync();
+
+                return Ok(examTypeNames);
             }
-            Console.WriteLine(qpMaster.NEPCode);
-            // Create a new QuantitySheet object and map the relevant fields
-            var quantitySheet = new QuantitySheet
+            catch (Exception ex)
             {
-                NEPCode = qpMaster.NEPCode,
-                PrivateCode = qpMaster.PrivateCode,
-                PaperNumber = qpMaster.PaperNumber,
-                PaperTitle = qpMaster.PaperTitle,
-                CourseId = qpMaster.CourseId.Value, // Ensure CourseId is not null
-                MaxMarks = qpMaster.MaxMarks.Value, // Ensure MaxMarks is not null
-                Duration = qpMaster.Duration,
-                ExamTypeId = qpMaster.ExamTypeId.Value, // Ensure ExamTypeId is not null
-                SubjectId = qpMaster.SubjectId.Value, // Ensure SubjectId is not null
-                LanguageId = qpMaster.LanguageId ?? new List<int>(),
-                CatchNo="",
-                LotNo="M",
-                InnerEnvelope="",
-                OuterEnvelope=0,
-                ExamDate="",
-                ExamTime="",
-                Status =1,
-                MSSStatus=1,
-                Pages=0,
-                StopCatch=0,
-                TTFStatus=0,
-                QPId = qpMasterId, // Assuming QPId in QuantitySheet corresponds to QPMasterId
-                ProjectId = projectId // Assign ProjectId to QuantitySheet
-            };
-
-            // Insert the new QuantitySheet record into the database
-            _context.QuantitySheets.Add(quantitySheet);
-            await _context.SaveChangesAsync();
-
-            return Ok("Data inserted into QuantitySheet successfully.");
+                _loggerService.LogError(ex.Message, ex.StackTrace, "Error occurred while fetching exam type names.");
+                return StatusCode(500, "Internal server error.");
+            }
         }
-
-
-
-        [HttpPost("InsertIntoQuantitySheetByCourseId")]
-        public async Task<IActionResult> InsertIntoQuantitySheetByCourseId([FromBody] InsertQuantitySheetByCourseIdRequest request, int projectId)
-        {
-            if (request == null || request.ExamTypeIds == null || !request.ExamTypeIds.Any())
-            {
-                return BadRequest("Invalid input. ExamTypeIds array cannot be null or empty.");
-            }
-
-            // Retrieve data from QpMaster table based on courseId and ExamTypeIds
-            var qpMasters = await _context.QpMasters
-                .Where(qp => qp.CourseId == request.CourseId && request.ExamTypeIds.Contains(qp.ExamTypeId ?? 0)) // Handle nullable int
-                .Select(qp => new
-                {
-                    qp.QPMasterId,
-                    qp.NEPCode,
-                    qp.PrivateCode,
-                    qp.PaperNumber,
-                    qp.PaperTitle,
-                    qp.CourseId,
-                    qp.MaxMarks,
-                    qp.Duration,
-                    qp.ExamTypeId,
-                    qp.SubjectId,
-                    qp.LanguageId // Assuming LanguageId is a list of integers
-                })
-                .ToListAsync();
-
-            if (!qpMasters.Any())
-            {
-                return NotFound("No QPMasters found for the given Course ID and ExamType IDs.");
-            }
-
-            foreach (var qpMaster in qpMasters)
-            {
-                var quantitySheet = new QuantitySheet
-                {
-                    NEPCode = qpMaster.NEPCode,
-                    PrivateCode = qpMaster.PrivateCode,
-                    PaperNumber = qpMaster.PaperNumber,
-                    PaperTitle = qpMaster.PaperTitle,
-                    CourseId = qpMaster.CourseId ?? 0, // Ensure non-null value
-                    MaxMarks = qpMaster.MaxMarks ?? 0, // Ensure non-null value
-                    Duration = qpMaster.Duration, // Assuming Duration is non-nullable
-                    ExamTypeId = qpMaster.ExamTypeId ?? 0, // Ensure non-null value
-                    SubjectId = qpMaster.SubjectId ?? 0, // Ensure non-null value
-                    LanguageId = qpMaster.LanguageId ?? new List<int>(),
-                    ProcessId = new List<int>(),
-                    CatchNo = "",
-                    LotNo = "M",
-                    InnerEnvelope = "",
-                    OuterEnvelope = 0,
-                    ExamDate = "",
-                    ExamTime = "",
-                    Status = 1,
-                    MSSStatus = 1,
-                    Pages = 0,
-                    StopCatch = 0,
-                    TTFStatus = 0,
-                    QPId = qpMaster.QPMasterId, // Assuming QPMasterId is never null
-                    ProjectId = projectId // Assign ProjectId to QuantitySheet
-                };
-
-                _context.QuantitySheets.Add(quantitySheet);
-            }
-
-            await _context.SaveChangesAsync();
-            return Ok("Data inserted into QuantitySheet successfully.");
-        }
-
-        // DTO for API Request
-        public class InsertQuantitySheetByCourseIdRequest
-        {
-            public int CourseId { get; set; }
-            public List<int> ExamTypeIds { get; set; }
-        }
-
-
-        [HttpPost("InsertIntoQuantitySheetByExamTypeIds")]
-        public async Task<IActionResult> InsertIntoQuantitySheetByExamTypeIds([FromBody] List<int> examTypeIds, int projectId)
-        {
-            if (examTypeIds == null || !examTypeIds.Any())
-            {
-                return BadRequest("Invalid input. ExamTypeIds array cannot be null or empty.");
-            }
-
-            // Retrieve data from QpMaster table based on ExamTypeIds
-            var qpMasters = await _context.QpMasters
-                .Where(qp => examTypeIds.Contains(qp.ExamTypeId ?? 0)) // Handle nullable int
-                .Select(qp => new
-                {
-                    qp.QPMasterId,
-                    qp.NEPCode,
-                    qp.PrivateCode,
-                    qp.PaperNumber,
-                    qp.PaperTitle,
-                    qp.CourseId,
-                    qp.MaxMarks,
-                    qp.Duration,
-                    qp.ExamTypeId,
-                    qp.SubjectId,
-                    qp.LanguageId // Assuming LanguageId is a list of integers
-                })
-                .ToListAsync();
-
-            if (!qpMasters.Any())
-            {
-                return NotFound("No QPMasters found for the given ExamType IDs.");
-            }
-
-            foreach (var qpMaster in qpMasters)
-            {
-                var quantitySheet = new QuantitySheet
-                {
-                    NEPCode = qpMaster.NEPCode,
-                    PrivateCode = qpMaster.PrivateCode,
-                    PaperNumber = qpMaster.PaperNumber,
-                    PaperTitle = qpMaster.PaperTitle,
-                    CourseId = qpMaster.CourseId ?? 0, // Ensure non-null value
-                    MaxMarks = qpMaster.MaxMarks ?? 0, // Ensure non-null value
-                    Duration = qpMaster.Duration, // Assuming Duration is non-nullable
-                    ExamTypeId = qpMaster.ExamTypeId ?? 0, // Ensure non-null value
-                    SubjectId = qpMaster.SubjectId ?? 0, // Ensure non-null value
-                    LanguageId = qpMaster.LanguageId ?? new List<int>(), // Convert list to string
-                    ProcessId = new List<int>(),
-                    CatchNo = "",
-                    LotNo = "M",
-                    InnerEnvelope = "",
-                    OuterEnvelope = 0,
-                    ExamDate = "",
-                    ExamTime = "",
-                    Status = 1,
-                    MSSStatus = 1,
-                    Pages = 0,
-                    StopCatch = 0,
-                    TTFStatus = 0,
-                    QPId = qpMaster.QPMasterId, // Assuming QPMasterId is never null
-                    ProjectId = projectId // Assign ProjectId to QuantitySheet
-                };
-
-                _context.QuantitySheets.Add(quantitySheet);
-            }
-
-            await _context.SaveChangesAsync();
-            return Ok("Data inserted into QuantitySheet successfully.");
-        }
-
-
 
     }
 }

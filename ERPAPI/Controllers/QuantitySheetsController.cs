@@ -26,7 +26,6 @@ public class QuantitySheetController : ControllerBase
         _processService = processService;
         _loggerService = loggerService;
     }
-
     [HttpGet("byProject/{projectId}")]
     public async Task<ActionResult<IEnumerable<QuantitySheet>>> GetByProjectId(int projectId)
     {
@@ -43,6 +42,7 @@ public class QuantitySheetController : ControllerBase
          PaperNumber = q.PaperNumber ?? string.Empty,
          PaperTitle = q.PaperTitle ?? string.Empty,
          Duration = q.Duration ?? string.Empty,
+
          /*Languages = _context.Languages
                 .Where(l => q.LanguageId.Contains(l.LanguageId))
                 .Select(l => l.Languages)
@@ -53,6 +53,7 @@ public class QuantitySheetController : ControllerBase
                             .Select(l => l.Languages)
                             .ToList()
                       : null, // If empty, set to null*/
+
 
          NEPCode = q.NEPCode ?? string.Empty,
          PrivateCode = q.PrivateCode ?? string.Empty,
