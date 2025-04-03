@@ -281,6 +281,10 @@ namespace ERPAPI.Controllers
                 from qp in _context.QpMasters
                 join crs in _context.Courses on qp.CourseId equals crs.CourseId into crsJoin
                 from crs in crsJoin.DefaultIfEmpty()
+                join et in _context.ExamTypes on qp.ExamTypeId equals et.ExamTypeId into etJoin
+                from et in etJoin.DefaultIfEmpty()
+                join sn in _context.Subjects on qp.SubjectId equals sn.SubjectId into snJoin
+                from sn in snJoin.DefaultIfEmpty()
                 where (qp.NEPCode.Contains(search) ||
                        qp.PrivateCode.Contains(search) ||
                        qp.PaperNumber.Contains(search) ||
@@ -292,7 +296,11 @@ namespace ERPAPI.Controllers
                     qp.NEPCode,
                     qp.PaperTitle,
                     qp.CourseId,
-                    CourseName = crs.CourseName // Select CourseName from the joined table
+                    CourseName = crs.CourseName, // Select CourseName from the joined table
+                    qp.PaperNumber,
+                    qp.Duration,
+                    ExamTypeName = et.TypeName, // Select ExamTypeName from the joined table
+                    SubjectName = sn.SubjectName // Select SubjectName from the joined table
                 }
             );
 
