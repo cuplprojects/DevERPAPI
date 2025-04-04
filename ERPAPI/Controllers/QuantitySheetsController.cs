@@ -31,7 +31,9 @@ public class QuantitySheetController : ControllerBase
     {
         var result = await _context.QuantitySheets
      .Where(q => q.ProjectId == projectId)
+
      .Select(q => new
+
      {
          QuantitySheetId = q.QuantitySheetId,
          CatchNo = q.CatchNo ?? string.Empty,
@@ -43,17 +45,10 @@ public class QuantitySheetController : ControllerBase
          PaperTitle = q.PaperTitle ?? string.Empty,
          Duration = q.Duration ?? string.Empty,
 
-         /*Languages = _context.Languages
-                .Where(l => q.LanguageId.Contains(l.LanguageId))
+         Languages = _context.Languages
+                .Where(l => q.LanguageId.Contains(l.LanguageId)) // Assuming LanguageId is a list
                 .Select(l => l.Languages)
-                .ToList() // Convert to List
-                .DefaultIfEmpty() // Ensure at least an empty list exists
-                .Any() ? _context.Languages
-                            .Where(l => q.LanguageId.Contains(l.LanguageId))
-                            .Select(l => l.Languages)
-                            .ToList()
-                      : null, // If empty, set to null*/
-
+                .ToList(), // Default to empty string if no language found
 
          NEPCode = q.NEPCode ?? string.Empty,
          PrivateCode = q.PrivateCode ?? string.Empty,
@@ -97,23 +92,37 @@ public class QuantitySheetController : ControllerBase
 
 
 
+
     [Authorize]
+
     [HttpPost]
     public async Task<IActionResult> Post([FromBody] List<QuantitySheet> newSheets)
     {
+        // Check if ModelState is valid
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+            Console.WriteLine("ModelState Errors: " + string.Join(", ", errors)); // Output model validation errors
+            return BadRequest(errors);  // Send validation errors as response
+        }
+
         if (newSheets == null || !newSheets.Any())
         {
+            Console.WriteLine("No data provided.");
             return BadRequest("No data provided.");
         }
 
         var projectId = newSheets.First().ProjectId;
+        Console.WriteLine($"Received ProjectId: {projectId}");
+
         var project = await _context.Projects
-           .Where(p => p.ProjectId == projectId)
-           .Select(p => new { p.TypeId, p.NoOfSeries })
-           .FirstOrDefaultAsync();
+            .Where(p => p.ProjectId == projectId)
+            .Select(p => new { p.TypeId, p.NoOfSeries })
+            .FirstOrDefaultAsync();
 
         if (project == null)
         {
+            Console.WriteLine($"Project with ProjectId {projectId} not found.");
             return BadRequest("Project not found.");
         }
 
@@ -123,14 +132,23 @@ public class QuantitySheetController : ControllerBase
             .Select(t => t.Types)
             .FirstOrDefaultAsync();
 
+        Console.WriteLine($"Project Type: {projectType}");
+
         if (projectType == "Booklet" && project.NoOfSeries.HasValue)
         {
             var noOfSeries = project.NoOfSeries.Value;
+
+            if (noOfSeries == 0)
+            {
+                noOfSeries=1; // Default to 1 if NoOfSeries is 0
+
+            }
             var adjustedSheets = new List<QuantitySheet>();
 
             foreach (var sheet in newSheets)
             {
                 var adjustedQuantity = sheet.Quantity / noOfSeries;
+                Console.WriteLine($"Adjusted Quantity for CatchNo {sheet.CatchNo}: {adjustedQuantity}");
 
                 for (int i = 0; i < noOfSeries; i++)
                 {
@@ -164,38 +182,47 @@ public class QuantitySheetController : ControllerBase
         {
             if (string.IsNullOrWhiteSpace(sheet.LotNo))
             {
+                Console.WriteLine($"LotNo is missing for CatchNo {sheet.CatchNo}.");
                 return BadRequest($"The LotNo field is required for sheet with CatchNo: {sheet.CatchNo}.");
             }
         }
+
         var existingSheets = await _context.QuantitySheets
             .Where(s => s.ProjectId == projectId && newSheets.Select(ns => ns.LotNo).Contains(s.LotNo))
             .ToListAsync();
+
+        Console.WriteLine($"Found {existingSheets.Count} existing sheets with matching LotNo.");
 
         var processedNewSheets = new List<QuantitySheet>();
 
         foreach (var sheet in newSheets)
         {
             sheet.ProcessId.Clear();
-            _processService.ProcessCatch(sheet);
+            _processService.ProcessCatch(sheet); // Ensure this is working as expected
+            Console.WriteLine($"Processed sheet with CatchNo {sheet.CatchNo}");
             processedNewSheets.Add(sheet);
         }
 
         var allSheets = existingSheets.Concat(processedNewSheets).ToList();
+        Console.WriteLine($"Total sheets after processing: {allSheets.Count}");
 
         var groupedSheets = allSheets.GroupBy(sheet => sheet.LotNo);
 
         foreach (var group in groupedSheets)
         {
             double totalQuantityForLot = group.Sum(sheet => sheet.Quantity);
+            Console.WriteLine($"Total quantity for LotNo {group.Key}: {totalQuantityForLot}");
 
             if (totalQuantityForLot == 0)
             {
+                Console.WriteLine($"Total quantity for lot {group.Key} is zero, cannot calculate percentages.");
                 return BadRequest($"Total quantity for lot {group.Key} is zero, cannot calculate percentages.");
             }
 
             foreach (var sheet in group)
             {
                 sheet.PercentageCatch = (sheet.Quantity / totalQuantityForLot) * 100;
+                Console.WriteLine($"Calculated PercentageCatch for CatchNo {sheet.CatchNo}: {sheet.PercentageCatch}");
 
                 if (!processedNewSheets.Contains(sheet))
                 {
@@ -204,6 +231,7 @@ public class QuantitySheetController : ControllerBase
             }
         }
 
+        Console.WriteLine($"Saving {processedNewSheets.Count} processed sheets to the database.");
         await _context.QuantitySheets.AddRangeAsync(processedNewSheets);
         await _context.SaveChangesAsync();
 
@@ -218,6 +246,7 @@ public class QuantitySheetController : ControllerBase
 
         return Ok(processedNewSheets);
     }
+
 
     //[Authorize]
     [HttpPut("update/{id}")]
@@ -274,6 +303,87 @@ public class QuantitySheetController : ControllerBase
             );
             return StatusCode(500, "An error occurred while updating the record.");
         }
+    }
+    [HttpGet("MergeQPintoQS")]
+    public async Task<IActionResult> MergeQPintoQS(int QPId)
+    {
+        // Fetch QPMaster data based on QPId
+        var qpMaster = await _context.QpMasters
+                                      .Where(p => p.QPMasterId == QPId)
+                                      .FirstOrDefaultAsync();
+
+        // If QPMaster is not found, return not found response
+        if (qpMaster == null)
+        {
+            return NotFound("QPMaster not found.");
+        }
+
+        // Fetch QuantitySheet data where QPId exists in the QS table
+        var quantitySheet = await _context.QuantitySheets
+                                           .Where(qs => qs.QPId == QPId)
+                                           .ToListAsync();
+
+        // Initialize the result list that will hold the merged data
+        var result = new List<QuantitySheet>();
+
+        // Create a merged result with data from QPMaster, even if no matching QuantitySheet is found
+        if (quantitySheet == null || quantitySheet.Count == 0)
+        {
+            var mergedQS = new QuantitySheet
+            {
+                QPId = qpMaster.QPMasterId,
+                Quantity = 0.0,  // Default value since no QuantitySheet is found
+                CourseId = qpMaster.CourseId ?? 0,
+                SubjectId = qpMaster.SubjectId ?? 0,
+                CatchNo = "",  // Default value since no QuantitySheet is found
+                InnerEnvelope = "",  // Default value since no QuantitySheet is found
+                OuterEnvelope = 0,  // Default value since no QuantitySheet is found
+                PaperTitle = qpMaster.PaperTitle,
+                PaperNumber = qpMaster.PaperNumber,
+                ExamDate = null,  // No exam date available without QuantitySheet
+                ExamTime = null,  // No exam time available without QuantitySheet
+                MaxMarks = qpMaster.MaxMarks ?? 0,
+                Duration = qpMaster.Duration ?? "",
+                LanguageId = qpMaster.LanguageId ??[0],  // Default empty array
+                ExamTypeId = qpMaster.ExamTypeId ?? 0,
+                NEPCode = qpMaster.NEPCode ?? "",
+                PrivateCode = qpMaster.PrivateCode ?? "",
+            };
+
+            result.Add(mergedQS);  // Add the merged data for the case when no QuantitySheet is found
+        }
+        else
+        {
+            // Otherwise, merge data for each QuantitySheet entry
+            foreach (var qs in quantitySheet)
+            {
+                var mergedQS = new QuantitySheet
+                {
+                    QPId = qpMaster.QPMasterId,
+                    Quantity = qs.Quantity == null ? 0.0 : qs.Quantity,
+                    CourseId = qpMaster.CourseId ?? 0,
+                    SubjectId = qpMaster.SubjectId ?? 0,
+                    CatchNo = string.IsNullOrEmpty(qs.CatchNo) ? "" : qs.CatchNo,
+                    InnerEnvelope = string.IsNullOrEmpty(qs.InnerEnvelope) ? "" : qs.InnerEnvelope,
+                    OuterEnvelope = qs.OuterEnvelope ?? 0,  // Default to 0 if OuterEnvelope is null
+                    PaperTitle = qpMaster.PaperTitle,
+                    PaperNumber = qpMaster.PaperNumber,
+                    ExamDate = qs.ExamDate,
+                    ExamTime = qs.ExamTime,
+                    MaxMarks = qpMaster.MaxMarks ?? 0,
+                    Duration = qpMaster.Duration ?? "",
+                    LanguageId = qpMaster.LanguageId ??[0],  // Default empty array if null
+                    ExamTypeId = qpMaster.ExamTypeId ?? 0,
+                    NEPCode = qpMaster.NEPCode ?? "",
+                    PrivateCode = qpMaster.PrivateCode ?? "",
+                };
+
+                result.Add(mergedQS);
+            }
+        }
+
+        // Return the merged result
+        return Ok(result);
     }
 
 
@@ -542,11 +652,47 @@ public class QuantitySheetController : ControllerBase
         return NoContent();
     }
 
+    [Authorize]
+    [HttpPut("UpdateStatus")]
+    public async Task<IActionResult> UpdateMSSStatus(int id, QuantitySheet quantity)
+    {
+        // Validate if the received id matches the quantity's id
+        if (id != quantity.QuantitySheetId)
+        {
+            return BadRequest();
+        }
 
+        // Retrieve the QuantitySheet from the database by the provided id
+        var existingQuantitySheet = await _context.QuantitySheets.FindAsync(id);
+        if (existingQuantitySheet == null)
+        {
+            return NotFound();
+        }
 
+        // Update the MSSStatus to 2
+        existingQuantitySheet.MSSStatus = 2;
 
+        // Save changes to the database
+        try
+        {
+            await _context.SaveChangesAsync(); // Save the changes
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (!QuantitySheetExists(id))
+            {
+                return NotFound();
+            }
+            else
+            {
+                throw;
+            }
+        }
 
+        return NoContent(); // Return 204 No Content status to indicate success
+    }
 
+  
     [Authorize]
     [HttpPut]
     public async Task<IActionResult> UpdateQuantitySheet([FromBody] List<QuantitySheet> newSheets)
@@ -755,7 +901,6 @@ public class QuantitySheetController : ControllerBase
         return Ok(uniqueLotNumbers);
     }
 
-    [Authorize]
     [HttpGet("Columns")]
     public IActionResult GetColumnNames()
     {
@@ -765,7 +910,10 @@ public class QuantitySheetController : ControllerBase
                            prop.Name != "ProjectId" &&
                            prop.Name != "ProcessId" &&
                            prop.Name != "Status" &&
-                           prop.Name != "StopCatch")
+                           prop.Name != "StopCatch" &&
+                           prop.Name != "MSSStatus" &&
+                           prop.Name != "TTFStatus" &&
+                           prop.Name != "QPId")
             .Select(prop => prop.Name)
             .ToList();
 
@@ -1406,5 +1554,7 @@ public class QuantitySheetController : ControllerBase
 
         return NoContent(); // Return 204 No Content on successful deletion
     }
+
+
 
 }

@@ -105,7 +105,7 @@ namespace ERPAPI.Controllers
                 .FirstOrDefaultAsync();
 
             if (subjectname == null)
-                return NotFound("Course not found.");
+                return NotFound("Subject not found.");
 
             return Ok(subjectname);
 

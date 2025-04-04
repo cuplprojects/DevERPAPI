@@ -3,7 +3,7 @@
     public class QC
     {
         public int QCId { get; set; }
-        public bool? Language { get; set; }
+        public bool? Language { get; set; } 
         public bool? MaxMarks { get; set; }
         public bool? Duration { get; set; }
         public bool? Status { get; set; }
