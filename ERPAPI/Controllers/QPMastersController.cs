@@ -335,7 +335,7 @@ namespace ERPAPI.Controllers
             }
 
             // Get the list of QPIds from QuantitySheet table
-            var existingQPIds = await _context.QuantitySheets
+            var existingQPIds = await _context.QuantitySheets 
                 .Select(qs => qs.QPId)
                 .ToListAsync();
 
