@@ -137,6 +137,7 @@ public class QuantitySheetController : ControllerBase
             {
                 noOfSeries = 1;
 
+
             }
             var adjustedSheets = new List<QuantitySheet>();
 
@@ -339,7 +340,7 @@ public class QuantitySheetController : ControllerBase
                 ExamTime = null,  // No exam time available without QuantitySheet
                 MaxMarks = qpMaster.MaxMarks ?? 0,
                 Duration = qpMaster.Duration ?? "",
-                LanguageId = qpMaster.LanguageId ??[0],  // Default empty array
+                LanguageId = qpMaster.LanguageId ?? [0],  // Default empty array
                 ExamTypeId = qpMaster.ExamTypeId ?? 0,
                 NEPCode = qpMaster.NEPCode ?? "",
                 PrivateCode = qpMaster.PrivateCode ?? "",
@@ -367,7 +368,7 @@ public class QuantitySheetController : ControllerBase
                     ExamTime = qs.ExamTime,
                     MaxMarks = qpMaster.MaxMarks ?? 0,
                     Duration = qpMaster.Duration ?? "",
-                    LanguageId = qpMaster.LanguageId ??[0],  // Default empty array if null
+                    LanguageId = qpMaster.LanguageId ?? [0],  // Default empty array if null
                     ExamTypeId = qpMaster.ExamTypeId ?? 0,
                     NEPCode = qpMaster.NEPCode ?? "",
                     PrivateCode = qpMaster.PrivateCode ?? "",
@@ -407,7 +408,7 @@ public class QuantitySheetController : ControllerBase
         {
             sheet.Status = 1;
         }
-       
+
 
         // Save changes to the database
         await _context.SaveChangesAsync();
@@ -687,7 +688,7 @@ public class QuantitySheetController : ControllerBase
         return NoContent(); // Return 204 No Content status to indicate success
     }
 
-  
+
     [Authorize]
     [HttpPut]
     public async Task<IActionResult> UpdateQuantitySheet([FromBody] List<QuantitySheet> newSheets)
@@ -1549,4 +1550,7 @@ public class QuantitySheetController : ControllerBase
 
         return NoContent(); // Return 204 No Content on successful deletion
     }
+
+
 }
+
