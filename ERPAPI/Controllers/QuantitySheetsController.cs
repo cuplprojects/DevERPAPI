@@ -31,11 +31,9 @@ public class QuantitySheetController : ControllerBase
     {
         var result = await _context.QuantitySheets
      .Where(q => q.ProjectId == projectId)
-<<<<<<< HEAD
+
      .Select(q => new
-=======
-     .Select(q => new 
->>>>>>> Madhavi
+
      {
          QuantitySheetId = q.QuantitySheetId,
          CatchNo = q.CatchNo ?? string.Empty,
@@ -46,26 +44,12 @@ public class QuantitySheetController : ControllerBase
          PaperNumber = q.PaperNumber ?? string.Empty,
          PaperTitle = q.PaperTitle ?? string.Empty,
          Duration = q.Duration ?? string.Empty,
-<<<<<<< HEAD
 
-         /*Languages = _context.Languages
-                .Where(l => q.LanguageId.Contains(l.LanguageId))
-                .Select(l => l.Languages)
-                .ToList() // Convert to List
-                .DefaultIfEmpty() // Ensure at least an empty list exists
-                .Any() ? _context.Languages
-                            .Where(l => q.LanguageId.Contains(l.LanguageId))
-                            .Select(l => l.Languages)
-                            .ToList()
-                      : null, // If empty, set to null*/
-
-
-=======
          Languages = _context.Languages
                 .Where(l => q.LanguageId.Contains(l.LanguageId)) // Assuming LanguageId is a list
                 .Select(l => l.Languages)
                 .ToList(), // Default to empty string if no language found
->>>>>>> Madhavi
+
          NEPCode = q.NEPCode ?? string.Empty,
          PrivateCode = q.PrivateCode ?? string.Empty,
          CourseId = q.CourseId,
@@ -103,15 +87,14 @@ public class QuantitySheetController : ControllerBase
         return Ok(result);
     }
 
-<<<<<<< HEAD
+
 
 
 
 
 
     [Authorize]
-=======
->>>>>>> Madhavi
+
     [HttpPost]
     public async Task<IActionResult> Post([FromBody] List<QuantitySheet> newSheets)
     {
@@ -154,16 +137,11 @@ public class QuantitySheetController : ControllerBase
         if (projectType == "Booklet" && project.NoOfSeries.HasValue)
         {
             var noOfSeries = project.NoOfSeries.Value;
-<<<<<<< HEAD
+
             if (noOfSeries == 0)
             {
-                noOfSeries=1; // Default to 1 if NoOfSeries is 0
-=======
-            Console.WriteLine($"Project has {noOfSeries} series.");
-            if (noOfSeries == 0)
-            {
-                noOfSeries = 1;
->>>>>>> Madhavi
+                noOfSeries = 1; // Default to 1 if NoOfSeries is 0
+
             }
             var adjustedSheets = new List<QuantitySheet>();
 
@@ -366,7 +344,7 @@ public class QuantitySheetController : ControllerBase
                 ExamTime = null,  // No exam time available without QuantitySheet
                 MaxMarks = qpMaster.MaxMarks ?? 0,
                 Duration = qpMaster.Duration ?? "",
-                LanguageId = qpMaster.LanguageId ??[0],  // Default empty array
+                LanguageId = qpMaster.LanguageId ?? [0],  // Default empty array
                 ExamTypeId = qpMaster.ExamTypeId ?? 0,
                 NEPCode = qpMaster.NEPCode ?? "",
                 PrivateCode = qpMaster.PrivateCode ?? "",
@@ -394,7 +372,7 @@ public class QuantitySheetController : ControllerBase
                     ExamTime = qs.ExamTime,
                     MaxMarks = qpMaster.MaxMarks ?? 0,
                     Duration = qpMaster.Duration ?? "",
-                    LanguageId = qpMaster.LanguageId ??[0],  // Default empty array if null
+                    LanguageId = qpMaster.LanguageId ?? [0],  // Default empty array if null
                     ExamTypeId = qpMaster.ExamTypeId ?? 0,
                     NEPCode = qpMaster.NEPCode ?? "",
                     PrivateCode = qpMaster.PrivateCode ?? "",
@@ -434,7 +412,7 @@ public class QuantitySheetController : ControllerBase
         {
             sheet.Status = 1;
         }
-       
+
 
         // Save changes to the database
         await _context.SaveChangesAsync();
@@ -714,7 +692,7 @@ public class QuantitySheetController : ControllerBase
         return NoContent(); // Return 204 No Content status to indicate success
     }
 
-  
+
     [Authorize]
     [HttpPut]
     public async Task<IActionResult> UpdateQuantitySheet([FromBody] List<QuantitySheet> newSheets)
@@ -1577,87 +1555,4 @@ public class QuantitySheetController : ControllerBase
         return NoContent(); // Return 204 No Content on successful deletion
     }
 
-
-
-    [HttpGet("MergeQPintoQS")]
-    public async Task<IActionResult> MergeQPintoQS(int QPId)
-    {
-        // Fetch QPMaster data based on QPId
-        var qpMaster = await _context.QpMasters
-                                      .Where(p => p.QPMasterId == QPId)
-                                      .FirstOrDefaultAsync();
-
-        // If QPMaster is not found, return not found response
-        if (qpMaster == null)
-        {
-            return NotFound("QPMaster not found.");
-        }
-
-        // Fetch QuantitySheet data where QPId exists in the QS table
-        var quantitySheet = await _context.QuantitySheets
-                                           .Where(qs => qs.QPId == QPId)
-                                           .ToListAsync();
-
-        // Initialize the result list that will hold the merged data
-        var result = new List<QuantitySheet>();
-
-        // Create a merged result with data from QPMaster, even if no matching QuantitySheet is found
-        if (quantitySheet == null || quantitySheet.Count == 0)
-        {
-            var mergedQS = new QuantitySheet
-            {
-                QPId = qpMaster.QPMasterId,
-                Quantity = 0.0,  // Default value since no QuantitySheet is found
-                CourseId = qpMaster.CourseId ?? 0,
-                SubjectId = qpMaster.SubjectId ?? 0,
-                CatchNo = "",  // Default value since no QuantitySheet is found
-                InnerEnvelope = "",  // Default value since no QuantitySheet is found
-                OuterEnvelope = 0,  // Default value since no QuantitySheet is found
-                PaperTitle = qpMaster.PaperTitle,
-                PaperNumber = qpMaster.PaperNumber,
-                ExamDate = null,  // No exam date available without QuantitySheet
-                ExamTime = null,  // No exam time available without QuantitySheet
-                MaxMarks = qpMaster.MaxMarks ?? 0,
-                Duration = qpMaster.Duration ?? "",
-                LanguageId = qpMaster.LanguageId ?? [0],  // Default empty array
-                ExamTypeId = qpMaster.ExamTypeId ?? 0,
-                NEPCode = qpMaster.NEPCode ?? "",
-                PrivateCode = qpMaster.PrivateCode ?? "",
-            };
-
-            result.Add(mergedQS);  // Add the merged data for the case when no QuantitySheet is found
-        }
-        else
-        {
-            // Otherwise, merge data for each QuantitySheet entry
-            foreach (var qs in quantitySheet)
-            {
-                var mergedQS = new QuantitySheet
-                {
-                    QPId = qpMaster.QPMasterId,
-                    Quantity = qs.Quantity == null ? 0.0 : qs.Quantity,
-                    CourseId = qpMaster.CourseId ?? 0,
-                    SubjectId = qpMaster.SubjectId ?? 0,
-                    CatchNo = string.IsNullOrEmpty(qs.CatchNo) ? "" : qs.CatchNo,
-                    InnerEnvelope = string.IsNullOrEmpty(qs.InnerEnvelope) ? "" : qs.InnerEnvelope,
-                    OuterEnvelope = qs.OuterEnvelope ?? 0,  // Default to 0 if OuterEnvelope is null
-                    PaperTitle = qpMaster.PaperTitle,
-                    PaperNumber = qpMaster.PaperNumber,
-                    ExamDate = qs.ExamDate,
-                    ExamTime = qs.ExamTime,
-                    MaxMarks = qpMaster.MaxMarks ?? 0,
-                    Duration = qpMaster.Duration ?? "",
-                    LanguageId = qpMaster.LanguageId ?? [0],  // Default empty array if null
-                    ExamTypeId = qpMaster.ExamTypeId ?? 0,
-                    NEPCode = qpMaster.NEPCode ?? "",
-                    PrivateCode = qpMaster.PrivateCode ?? "",
-                };
-
-                result.Add(mergedQS);
-            }
-        }
-
-        // Return the merged result
-        return Ok(result);
-    }
 }

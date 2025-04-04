@@ -156,13 +156,9 @@ namespace ERPAPI.Controllers
                     QuantitysheetId = qs.QuantitySheetId,
                     MaxMarks = qs.MaxMarks,
                     Duration = qs.Duration,
-<<<<<<< HEAD
-
                     LanguageId = qs.LanguageId,
 
-=======
-                    Language = qs.LanguageId,
->>>>>>> Madhavi
+
                     Series = project.SeriesName, // Default series, adjust as needed
                     Verified = qcGroup.Any() ? new
                     {
