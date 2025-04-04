@@ -323,10 +323,11 @@ namespace ERPAPI.Controllers
 
         [HttpGet("SearchInQpMaster")]
         public async Task<IActionResult> SearchInQpMaster(
-[FromQuery] string search,
-[FromQuery] int? groupId, // Add groupId as a nullable int
-[FromQuery] int page = 1,
-[FromQuery] int pageSize = 5)
+      [FromQuery] string search,
+      [FromQuery] int? groupId, // Add groupId as a nullable int
+      [FromQuery] int? examTypeId, // Add examTypeId as a nullable int
+      [FromQuery] int page = 1,
+      [FromQuery] int pageSize = 5)
         {
             if (string.IsNullOrWhiteSpace(search))
             {
@@ -337,35 +338,37 @@ namespace ERPAPI.Controllers
             var existingQPIds = await _context.QuantitySheets
                 .Select(qs => qs.QPId)
                 .ToListAsync();
+
             var query = (
-    from qp in _context.QpMasters
-    join crs in _context.Courses on qp.CourseId equals crs.CourseId into crsJoin
-    from crs in crsJoin.DefaultIfEmpty()
-    join et in _context.ExamTypes on qp.ExamTypeId equals et.ExamTypeId into etJoin
-    from et in etJoin.DefaultIfEmpty()
-    join sn in _context.Subjects on qp.SubjectId equals sn.SubjectId into snJoin
-    from sn in snJoin.DefaultIfEmpty()
-    where (qp.NEPCode.Contains(search) ||
-           qp.PrivateCode.Contains(search) ||
-           qp.PaperNumber.Contains(search) ||
-        qp.PaperTitle.Contains(search)) &&
-        (!groupId.HasValue || qp.GroupId == groupId) &&
-          !existingQPIds.Contains(qp.QPMasterId)
-    select new
-    {
-        qp.QPMasterId,
-        qp.NEPCode,
-        qp.PaperTitle,
-        qp.CourseId,
-        CourseName = crs.CourseName,
-        qp.PaperNumber,
-        qp.Duration,
-        qp.LanguageId,  // Array of Language IDs
-        qp.ExamTypeId,
-        ExamTypeName = et.TypeName,
-        SubjectName = sn.SubjectName
-    }
-);
+                from qp in _context.QpMasters
+                join crs in _context.Courses on qp.CourseId equals crs.CourseId into crsJoin
+                from crs in crsJoin.DefaultIfEmpty()
+                join et in _context.ExamTypes on qp.ExamTypeId equals et.ExamTypeId into etJoin
+                from et in etJoin.DefaultIfEmpty()
+                join sn in _context.Subjects on qp.SubjectId equals sn.SubjectId into snJoin
+                from sn in snJoin.DefaultIfEmpty()
+                where (qp.NEPCode.Contains(search) ||
+                       qp.PrivateCode.Contains(search) ||
+                       qp.PaperNumber.Contains(search) ||
+                       qp.PaperTitle.Contains(search)) &&
+                      (!groupId.HasValue || qp.GroupId == groupId) &&
+                      (!examTypeId.HasValue || qp.ExamTypeId == examTypeId) &&
+                      !existingQPIds.Contains(qp.QPMasterId)
+                select new
+                {
+                    qp.QPMasterId,
+                    qp.NEPCode,
+                    qp.PaperTitle,
+                    qp.CourseId,
+                    CourseName = crs.CourseName,
+                    qp.PaperNumber,
+                    qp.Duration,
+                    qp.LanguageId,  // Array of Language IDs
+                    qp.ExamTypeId,
+                    ExamTypeName = et.TypeName,
+                    SubjectName = sn.SubjectName
+                }
+            );
 
             var result = await query.AsNoTracking().ToListAsync();
 
