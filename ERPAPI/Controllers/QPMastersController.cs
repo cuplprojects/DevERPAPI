@@ -323,10 +323,13 @@ namespace ERPAPI.Controllers
 
         [HttpGet("SearchInQpMaster")]
         public async Task<IActionResult> SearchInQpMaster(
-        [FromQuery] string search,
-        [FromQuery] int? groupId, // Add groupId as a nullable int
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 5)
+
+      [FromQuery] string search,
+      [FromQuery] int? groupId, // Add groupId as a nullable int
+      [FromQuery] int? examTypeId, // Add examTypeId as a nullable int
+      [FromQuery] int page = 1,
+      [FromQuery] int pageSize = 5)
+
         {
             if (string.IsNullOrWhiteSpace(search))
             {
@@ -337,7 +340,9 @@ namespace ERPAPI.Controllers
             var existingQPIds = await _context.QuantitySheets
                 .Select(qs => qs.QPId)
                 .ToListAsync();
+
             var query = (
+
             from qp in _context.QpMasters
             join crs in _context.Courses on qp.CourseId equals crs.CourseId into crsJoin
             from crs in crsJoin.DefaultIfEmpty()
@@ -366,6 +371,7 @@ namespace ERPAPI.Controllers
                 SubjectName = sn.SubjectName
             }
 );
+
 
             var result = await query.AsNoTracking().ToListAsync();
 
