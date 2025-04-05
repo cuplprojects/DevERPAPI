@@ -238,7 +238,7 @@ namespace ERPAPI.Controllers
                             qp.PaperTitle,
                             qp.MaxMarks,
                             qp.Duration,
-                            qp.CustomizedField1,
+                            qp.StructureOfPaper,
                             qp.CustomizedField2,
                             qp.CustomizedField3,
                             CourseName = crs != null ? crs.CourseName : null,
@@ -353,6 +353,7 @@ namespace ERPAPI.Controllers
             where (qp.NEPCode.Contains(search) ||
             qp.PrivateCode.Contains(search) ||
             qp.PaperNumber.Contains(search) ||
+            crs.CourseName.Contains(search) ||
             qp.PaperTitle.Contains(search)) &&
         (!groupId.HasValue || qp.GroupId == groupId) &&
           !existingQPIds.Contains(qp.QPMasterId)
@@ -367,6 +368,7 @@ namespace ERPAPI.Controllers
                 qp.Duration,
                 qp.LanguageId,  // Array of Language IDs
                 qp.ExamTypeId,
+                qp.SubjectId,
                 ExamTypeName = et.TypeName,
                 SubjectName = sn.SubjectName
             }
@@ -386,6 +388,7 @@ namespace ERPAPI.Controllers
                 qp.PaperTitle,
                 qp.CourseId,
                 qp.CourseName,
+                qp.SubjectId,
                 qp.PaperNumber,
                 qp.Duration,
                 LanguageIds = qp.LanguageId,  // Keep Language ID array

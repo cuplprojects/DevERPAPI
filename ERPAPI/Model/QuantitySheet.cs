@@ -47,7 +47,9 @@ namespace ERPAPI.Model
         public int MSSStatus { get; set; }
 
         public int? TTFStatus { get; set; }
-      
+
+        public string? StructureOfPaper { get; set; }
+
 
     }
 
