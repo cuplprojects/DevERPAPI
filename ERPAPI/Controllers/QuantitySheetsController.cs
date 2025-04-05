@@ -44,7 +44,6 @@ public class QuantitySheetController : ControllerBase
          PaperNumber = q.PaperNumber ?? string.Empty,
          PaperTitle = q.PaperTitle ?? string.Empty,
          Duration = q.Duration ?? string.Empty,
-
          Languages = _context.Languages
                 .Where(l => q.LanguageId.Contains(l.LanguageId)) // Assuming LanguageId is a list
                 .Select(l => l.Languages)
@@ -86,11 +85,6 @@ public class QuantitySheetController : ControllerBase
 
         return Ok(result);
     }
-
-
-
-
-
 
 
     [Authorize]
@@ -138,9 +132,11 @@ public class QuantitySheetController : ControllerBase
         {
             var noOfSeries = project.NoOfSeries.Value;
 
+            Console.WriteLine($"Project has {noOfSeries} series.");
             if (noOfSeries == 0)
             {
-                noOfSeries = 1; // Default to 1 if NoOfSeries is 0
+                noOfSeries = 1;
+
 
             }
             var adjustedSheets = new List<QuantitySheet>();
@@ -1555,4 +1551,6 @@ public class QuantitySheetController : ControllerBase
         return NoContent(); // Return 204 No Content on successful deletion
     }
 
+
 }
+

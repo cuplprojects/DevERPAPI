@@ -157,8 +157,6 @@ namespace ERPAPI.Controllers
                     MaxMarks = qs.MaxMarks,
                     Duration = qs.Duration,
                     LanguageId = qs.LanguageId,
-
-
                     Series = project.SeriesName, // Default series, adjust as needed
                     Verified = qcGroup.Any() ? new
                     {
