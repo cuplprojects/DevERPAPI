@@ -293,6 +293,7 @@ namespace ERPAPI.Controllers
                 where (qp.NEPCode.Contains(search) ||
                        qp.PrivateCode.Contains(search) ||
                        qp.PaperNumber.Contains(search) ||
+                       crs.CourseName.Contains(search) ||
                        qp.PaperTitle.Contains(search)) &&
                       (!groupId.HasValue || qp.GroupId == groupId) && // Add groupId filter
                       !existingQPIds.Contains(qp.QPMasterId) // Exclude QPMasterIds that are already in QuantitySheet
@@ -318,12 +319,7 @@ namespace ERPAPI.Controllers
 
             return Ok(result);
         }
-<<<<<<< HEAD
-
-
-
-
-      
+   
         [HttpGet("GetExamTypeNamesByProjectId/{projectId}")]
         public async Task<IActionResult> GetExamTypeNamesByProjectId(int projectId)
         {
@@ -356,8 +352,6 @@ namespace ERPAPI.Controllers
             }
         }
 
-=======
->>>>>>> Madhavi
     }
 }
 
