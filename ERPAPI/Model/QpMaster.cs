@@ -18,7 +18,7 @@ namespace ERPAPI.Model
         public int? MaxMarks { get; set; }
         public string? Duration { get; set; }
         public List<int>? LanguageId { get; set; }
-        public string? CustomizedField1 { get; set; }
+        public string? StructureOfPaper { get; set; }
         public string? CustomizedField2 { get; set; }
         public string? CustomizedField3 { get; set; }
         public int? CourseId { get; set; }

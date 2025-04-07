@@ -238,7 +238,7 @@ namespace ERPAPI.Controllers
                             qp.PaperTitle,
                             qp.MaxMarks,
                             qp.Duration,
-                            qp.CustomizedField1,
+                            qp.StructureOfPaper,
                             qp.CustomizedField2,
                             qp.CustomizedField3,
                             CourseName = crs != null ? crs.CourseName : null,
@@ -264,13 +264,18 @@ namespace ERPAPI.Controllers
 
             return Ok(result);
         }
+       
+
 
         [HttpGet("SearchInQpMaster")]
         public async Task<IActionResult> SearchInQpMaster(
-     [FromQuery] string search,
-     [FromQuery] int? groupId, // Add groupId as a nullable int
-     [FromQuery] int page = 1,
-     [FromQuery] int pageSize = 5)
+
+      [FromQuery] string search,
+      [FromQuery] int? groupId, // Add groupId as a nullable int
+      [FromQuery] int? examTypeId, // Add examTypeId as a nullable int
+      [FromQuery] int page = 1,
+      [FromQuery] int pageSize = 5)
+
         {
             if (string.IsNullOrWhiteSpace(search))
             {
@@ -278,11 +283,12 @@ namespace ERPAPI.Controllers
             }
 
             // Get the list of QPIds from QuantitySheet table
-            var existingQPIds = await _context.QuantitySheets
+            var existingQPIds = await _context.QuantitySheets 
                 .Select(qs => qs.QPId)
                 .ToListAsync();
 
             var query = (
+
                 from qp in _context.QpMasters
                 join crs in _context.Courses on qp.CourseId equals crs.CourseId into crsJoin
                 from crs in crsJoin.DefaultIfEmpty()
@@ -310,16 +316,35 @@ namespace ERPAPI.Controllers
                     SubjectName = sn.SubjectName // Select SubjectName from the joined table
                 }
             );
+            var result = await query.AsNoTracking().ToListAsync();
 
-            var result = await query
-                .AsNoTracking()
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
+            // 🔹 Fetch all language names into a dictionary
+            var languageDict = await _context.Languages
+                .ToDictionaryAsync(l => l.LanguageId, l => l.Languages);
 
-            return Ok(result);
+            var finalResult = result.Select(qp => new
+            {
+                qp.QPMasterId,
+                qp.NEPCode,
+                qp.PaperTitle,
+                qp.CourseId,
+                qp.CourseName,
+                qp.SubjectId,
+                qp.PaperNumber,
+                qp.Duration,
+                LanguageIds = qp.LanguageId,  // Keep Language ID array
+                LanguageNames = qp.LanguageId != null
+                    ? qp.LanguageId.Select(id => languageDict.ContainsKey(id) ? languageDict[id] : null).Where(name => name != null).ToList()
+                    : new List<string>(),  // Convert IDs to Names
+                qp.ExamTypeId,
+                qp.ExamTypeName,
+                qp.SubjectName
+            }).ToList();
+
+            return Ok(finalResult);
         }
-   
+
+
         [HttpGet("GetExamTypeNamesByProjectId/{projectId}")]
         public async Task<IActionResult> GetExamTypeNamesByProjectId(int projectId)
         {
