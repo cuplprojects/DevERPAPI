@@ -264,7 +264,7 @@ namespace ERPAPI.Controllers
 
             return Ok(result);
         }
-       
+   
 
 
         [HttpGet("SearchInQpMaster")]
@@ -316,6 +316,8 @@ namespace ERPAPI.Controllers
                     SubjectName = sn.SubjectName // Select SubjectName from the joined table
                 }
             );
+
+
             var result = await query.AsNoTracking().ToListAsync();
 
             // 🔹 Fetch all language names into a dictionary
@@ -343,7 +345,6 @@ namespace ERPAPI.Controllers
 
             return Ok(finalResult);
         }
-
 
         [HttpGet("GetExamTypeNamesByProjectId/{projectId}")]
         public async Task<IActionResult> GetExamTypeNamesByProjectId(int projectId)
