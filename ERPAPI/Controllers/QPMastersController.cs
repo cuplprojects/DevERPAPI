@@ -264,13 +264,70 @@ namespace ERPAPI.Controllers
 
             return Ok(result);
         }
+        /*
+                [HttpGet("SearchInQpMaster")]
+                public async Task<IActionResult> SearchInQpMaster(
+             [FromQuery] string search,
+             [FromQuery] int? groupId, // Add groupId as a nullable int
+             [FromQuery] int page = 1,
+             [FromQuery] int pageSize = 5)
+                {
+                    if (string.IsNullOrWhiteSpace(search))
+                    {
+                        return BadRequest("Search query cannot be null or empty.");
+                    }
+
+                    // Get the list of QPIds from QuantitySheet table
+                    var existingQPIds = await _context.QuantitySheets
+                        .Select(qs => qs.QPId)
+                        .ToListAsync();
+
+                    var query = (
+                        from qp in _context.QpMasters
+                        join crs in _context.Courses on qp.CourseId equals crs.CourseId into crsJoin
+                        from crs in crsJoin.DefaultIfEmpty()
+                        join et in _context.ExamTypes on qp.ExamTypeId equals et.ExamTypeId into etJoin
+                        from et in etJoin.DefaultIfEmpty()
+                        join sn in _context.Subjects on qp.SubjectId equals sn.SubjectId into snJoin
+                        from sn in snJoin.DefaultIfEmpty()
+                        where (qp.NEPCode.Contains(search) ||
+                               qp.PrivateCode.Contains(search) ||
+                               qp.PaperNumber.Contains(search) ||
+                               qp.PaperTitle.Contains(search)) &&
+                              (!groupId.HasValue || qp.GroupId == groupId) && // Add groupId filter
+                              !existingQPIds.Contains(qp.QPMasterId) // Exclude QPMasterIds that are already in QuantitySheet
+                        select new
+                        {
+                            qp.QPMasterId,
+                            qp.NEPCode,
+                            qp.PaperTitle,
+                            qp.CourseId,
+                            CourseName = crs.CourseName, // Select CourseName from the joined table
+                            qp.PaperNumber,
+                            qp.Duration,
+                            ExamTypeName = et.TypeName, // Select ExamTypeName from the joined table
+                            SubjectName = sn.SubjectName // Select SubjectName from the joined table
+                        }
+                    );
+
+                    var result = await query
+                        .AsNoTracking()
+                        .Skip((page - 1) * pageSize)
+                        .Take(pageSize)
+                        .ToListAsync();
+
+                    return Ok(result);
+                }
+        */
+
 
         [HttpGet("SearchInQpMaster")]
         public async Task<IActionResult> SearchInQpMaster(
-            [FromQuery] string search,
-            [FromQuery] int? groupId, // Add groupId as a nullable int
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 5)
+      [FromQuery] string search,
+      [FromQuery] int? groupId, // Add groupId as a nullable int
+      [FromQuery] int? examTypeId, // Add examTypeId as a nullable int
+      [FromQuery] int page = 1,
+      [FromQuery] int pageSize = 5)
         {
             if (string.IsNullOrWhiteSpace(search))
             {
@@ -278,7 +335,7 @@ namespace ERPAPI.Controllers
             }
 
             // Get the list of QPIds from QuantitySheet table
-            var existingQPIds = await _context.QuantitySheets
+            var existingQPIds = await _context.QuantitySheets 
                 .Select(qs => qs.QPId)
                 .ToListAsync();
 
@@ -294,36 +351,54 @@ namespace ERPAPI.Controllers
                        qp.PrivateCode.Contains(search) ||
                        qp.PaperNumber.Contains(search) ||
                        qp.PaperTitle.Contains(search)) &&
-                      (!groupId.HasValue || qp.GroupId == groupId) && // Add groupId filter
-                      !existingQPIds.Contains(qp.QPMasterId) // Exclude QPMasterIds that are already in QuantitySheet
+                      (!groupId.HasValue || qp.GroupId == groupId) &&
+                      (!examTypeId.HasValue || qp.ExamTypeId == examTypeId) &&
+                      !existingQPIds.Contains(qp.QPMasterId)
                 select new
                 {
                     qp.QPMasterId,
                     qp.NEPCode,
                     qp.PaperTitle,
                     qp.CourseId,
-                    CourseName = crs.CourseName, // Select CourseName from the joined table
+                    CourseName = crs.CourseName,
                     qp.PaperNumber,
                     qp.Duration,
-                    ExamTypeName = et.TypeName, // Select ExamTypeName from the joined table
-                    SubjectName = sn.SubjectName // Select SubjectName from the joined table
+                    qp.LanguageId,  // Array of Language IDs
+                    qp.ExamTypeId,
+                    ExamTypeName = et.TypeName,
+                    SubjectName = sn.SubjectName
                 }
             );
 
-            var result = await query
-                .AsNoTracking()
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
+            var result = await query.AsNoTracking().ToListAsync();
 
-            return Ok(result);
+            // 🔹 Fetch all language names into a dictionary
+            var languageDict = await _context.Languages
+                .ToDictionaryAsync(l => l.LanguageId, l => l.Languages);
+
+            var finalResult = result.Select(qp => new
+            {
+                qp.QPMasterId,
+                qp.NEPCode,
+                qp.PaperTitle,
+                qp.CourseId,
+                qp.CourseName,
+                qp.PaperNumber,
+                qp.Duration,
+                LanguageIds = qp.LanguageId,  // Keep Language ID array
+                LanguageNames = qp.LanguageId != null
+                    ? qp.LanguageId.Select(id => languageDict.ContainsKey(id) ? languageDict[id] : null).Where(name => name != null).ToList()
+                    : new List<string>(),  // Convert IDs to Names
+                qp.ExamTypeId,
+                qp.ExamTypeName,
+                qp.SubjectName
+            }).ToList();
+
+            return Ok(finalResult);
         }
 
 
 
-
-
-      
         [HttpGet("GetExamTypeNamesByProjectId/{projectId}")]
         public async Task<IActionResult> GetExamTypeNamesByProjectId(int projectId)
         {
