@@ -20,5 +20,6 @@ namespace ERPGenericFunctions.Model
         public string Gender { get; set; }
         public string Address { get; set; }
         public string? ProfilePicturePath { get; set; }
+        public int LocationId { get; set; }
     }
 }

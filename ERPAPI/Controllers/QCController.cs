@@ -176,7 +176,7 @@ namespace ERPAPI.Controllers
      {
          x.CatchNo,
          x.QuantitysheetId,
-         x.Language,  // Ensure Language is an array, empty if null
+         x.LanguageId,  // Ensure Language is an array, empty if null
          x.Duration,
          x.MaxMarks,
          x.Series,

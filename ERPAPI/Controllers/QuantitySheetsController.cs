@@ -32,7 +32,9 @@ public class QuantitySheetController : ControllerBase
     {
         var result = await _context.QuantitySheets
      .Where(q => q.ProjectId == projectId)
-     .Select(q => new 
+
+
+     .Select(q => new
 
 
      {
@@ -45,7 +47,7 @@ public class QuantitySheetController : ControllerBase
          PaperNumber = q.PaperNumber ?? string.Empty,
          PaperTitle = q.PaperTitle ?? string.Empty,
          Duration = q.Duration ?? string.Empty,
-         LanguageId = q.LanguageId ?? new List<int>(), // Assuming LanguageId is a list
+
          Languages = _context.Languages
                 .Where(l => q.LanguageId.Contains(l.LanguageId)) // Assuming LanguageId is a list
                 .Select(l => l.Languages)
@@ -133,9 +135,13 @@ public class QuantitySheetController : ControllerBase
         if (projectType == "Booklet" && project.NoOfSeries.HasValue)
         {
             var noOfSeries = project.NoOfSeries.Value;
+
+
+            Console.WriteLine($"Project has {noOfSeries} series.");
             if (noOfSeries == 0)
             {
-                noOfSeries=1; // Default to 1 if NoOfSeries is 0
+                noOfSeries = 1;
+
 
 
             }
@@ -688,7 +694,10 @@ public class QuantitySheetController : ControllerBase
         return NoContent(); // Return 204 No Content status to indicate success
     }
 
+
+
     [Authorize]
+
     [HttpPut]
     public async Task<IActionResult> UpdateQuantitySheet([FromBody] List<QuantitySheet> newSheets)
     {
@@ -1648,6 +1657,8 @@ public class QuantitySheetController : ControllerBase
 
         return NoContent(); // Return 204 No Content on successful deletion
     }
+
+
 
 }
 
