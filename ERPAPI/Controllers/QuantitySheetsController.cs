@@ -44,10 +44,10 @@ public class QuantitySheetController : ControllerBase
          PaperNumber = q.PaperNumber ?? string.Empty,
          PaperTitle = q.PaperTitle ?? string.Empty,
          Duration = q.Duration ?? string.Empty,
-         Languages = _context.Languages
+         /*Languages = _context.Languages
                 .Where(l => q.LanguageId.Contains(l.LanguageId)) // Assuming LanguageId is a list
                 .Select(l => l.Languages)
-                .ToList(), // Default to empty string if no language found
+                .ToList(), // Default to empty string if no language found*/
 
          NEPCode = q.NEPCode ?? string.Empty,
          PrivateCode = q.PrivateCode ?? string.Empty,
@@ -167,6 +167,16 @@ public class QuantitySheetController : ControllerBase
                         ExamTime = sheet.ExamTime,
                         ProcessId = new List<int>(), // Start with an empty list for the new catch
                         StopCatch = 0,
+                        StructureOfPaper = sheet.StructureOfPaper,
+                        TTFStatus = sheet.TTFStatus,
+                        MSSStatus = sheet.MSSStatus,
+                        QPId = sheet.QPId,
+                        MaxMarks = sheet.MaxMarks,
+                        Duration = sheet.Duration,
+                        LanguageId = sheet.LanguageId,
+                        ExamTypeId = sheet.ExamTypeId,
+                        NEPCode = sheet.NEPCode,
+                        PrivateCode = sheet.PrivateCode,
                     };
                     adjustedSheets.Add(newSheet);
                 }
