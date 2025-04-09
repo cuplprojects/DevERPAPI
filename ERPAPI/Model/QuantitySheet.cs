@@ -43,7 +43,7 @@ namespace ERPAPI.Model
         [StringLength(45)]
         public string? NEPCode { get; set; }
         [StringLength(45)]
-        public string? PrivateCode { get; set; }
+        public string? UniqueCode { get; set; }
         public int MSSStatus { get; set; }
 
         public int? TTFStatus { get; set; }
