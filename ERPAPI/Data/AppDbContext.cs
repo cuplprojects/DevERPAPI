@@ -27,7 +27,7 @@ namespace ERPAPI.Data
         public DbSet<User> Users { get; set; } // Assuming this is already present
         public DbSet<UserAuth> UserAuths { get; set; } // Add this for UserAuth
         public DbSet<SecurityQuestion> SecurityQuestions { get; set; }
-
+        public DbSet<Location> Locations { get; set; }
         public DbSet<Role> Roles { get; set; }
         public DbSet<Reports> Reports { get; set; }
         public DbSet<Machine> Machine { get; set; }

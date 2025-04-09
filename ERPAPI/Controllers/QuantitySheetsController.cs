@@ -10,6 +10,7 @@ using NuGet.Protocol.Plugins;
 using Microsoft.CodeAnalysis;
 using Microsoft.AspNetCore.Authorization;
 using ERPAPI.Services;
+using Microsoft.CodeAnalysis.Host;
 
 
 [ApiController]
@@ -32,7 +33,9 @@ public class QuantitySheetController : ControllerBase
         var result = await _context.QuantitySheets
      .Where(q => q.ProjectId == projectId)
 
+
      .Select(q => new
+
 
      {
          QuantitySheetId = q.QuantitySheetId,
@@ -44,7 +47,12 @@ public class QuantitySheetController : ControllerBase
          PaperNumber = q.PaperNumber ?? string.Empty,
          PaperTitle = q.PaperTitle ?? string.Empty,
          Duration = q.Duration ?? string.Empty,
+<<<<<<< HEAD
          /*Languages = _context.Languages
+=======
+
+         Languages = _context.Languages
+>>>>>>> Madhavi
                 .Where(l => q.LanguageId.Contains(l.LanguageId)) // Assuming LanguageId is a list
                 .Select(l => l.Languages)
                 .ToList(), // Default to empty string if no language found*/
@@ -132,10 +140,12 @@ public class QuantitySheetController : ControllerBase
         {
             var noOfSeries = project.NoOfSeries.Value;
 
+
             Console.WriteLine($"Project has {noOfSeries} series.");
             if (noOfSeries == 0)
             {
                 noOfSeries = 1;
+
 
 
             }
@@ -699,7 +709,9 @@ public class QuantitySheetController : ControllerBase
     }
 
 
+
     [Authorize]
+
     [HttpPut]
     public async Task<IActionResult> UpdateQuantitySheet([FromBody] List<QuantitySheet> newSheets)
     {
@@ -729,12 +741,17 @@ public class QuantitySheetController : ControllerBase
         if (projectType == "Booklet" && project.NoOfSeries.HasValue)
         {
             var noOfSeries = project.NoOfSeries.Value;
+            if (noOfSeries == 0)
+            {
+                noOfSeries = 1; // Default to 1 if NoOfSeries is 0
+            }
             var adjustedSheets = new List<QuantitySheet>();
 
             foreach (var sheet in newSheets)
             {
                 // Divide the quantity by the NoOfSeries for each sheet in a Booklet
                 var adjustedQuantity = sheet.Quantity / noOfSeries;
+                
                 for (int i = 0; i < noOfSeries; i++)
                 {
                     var newSheet = new QuantitySheet
@@ -754,6 +771,18 @@ public class QuantitySheetController : ControllerBase
                         ExamTime = sheet.ExamTime,
                         ProcessId = new List<int>(), // Empty list for new catch
                         StopCatch = 0,
+                        MaxMarks = sheet.MaxMarks,
+                        Duration = sheet.Duration,
+                        LanguageId = sheet.LanguageId,
+                        NEPCode = sheet.NEPCode,
+                        PrivateCode = sheet.PrivateCode,
+                        QPId = sheet.QPId,
+                        MSSStatus = sheet.MSSStatus,
+                        TTFStatus = sheet.TTFStatus,
+                        Status = sheet.Status,
+                        ExamTypeId = sheet.ExamTypeId,
+                        
+
                     };
                     adjustedSheets.Add(newSheet);
                 }
@@ -797,6 +826,15 @@ public class QuantitySheetController : ControllerBase
                 if (!string.IsNullOrEmpty(newSheet.ExamTime)) existingSheet.ExamTime = newSheet.ExamTime;
                 if (newSheet.Quantity > 0) existingSheet.Quantity = newSheet.Quantity;
                 if (newSheet.Pages > 0) existingSheet.Pages = newSheet.Pages;
+                if(newSheet.MaxMarks > 0) existingSheet.MaxMarks = newSheet.MaxMarks;
+                if (!string.IsNullOrEmpty(newSheet.Duration)) existingSheet.Duration = newSheet.Duration;
+                if (newSheet.LanguageId != null && newSheet.LanguageId.Count > 0) existingSheet.LanguageId = newSheet.LanguageId;
+                if (!string.IsNullOrEmpty(newSheet.NEPCode)) existingSheet.NEPCode = newSheet.NEPCode;
+                if (!string.IsNullOrEmpty(newSheet.PrivateCode)) existingSheet.PrivateCode = newSheet.PrivateCode;
+                if (newSheet.QPId > 0) existingSheet.QPId = newSheet.QPId;
+                if (newSheet.MSSStatus != 0) existingSheet.MSSStatus = newSheet.MSSStatus;
+                if (newSheet.TTFStatus != 0) existingSheet.TTFStatus = newSheet.TTFStatus;
+                if (newSheet.Status != 0) existingSheet.Status = newSheet.Status;
 
                 // If project is a "Booklet", update all matching CatchNo in the same LotNo
                 if (projectType == "Booklet")
@@ -808,7 +846,12 @@ public class QuantitySheetController : ControllerBase
 
                     // Now update the Quantity for all matching sheets, divide by NoOfSeries
                     var totalQuantity = newSheet.Quantity;
-                    var adjustedQuantity = totalQuantity / project.NoOfSeries.Value;
+                    var series = project.NoOfSeries.Value;
+                    if (series == 0)
+                    {
+                        series = 1; // Default to 1 if NoOfSeries is 0
+                    }
+                    var adjustedQuantity = totalQuantity / series;
 
                     foreach (var matchingSheet in matchingSheets)
                     {
@@ -824,6 +867,15 @@ public class QuantitySheetController : ControllerBase
                         if (newSheet.OuterEnvelope > 0) matchingSheet.OuterEnvelope = newSheet.OuterEnvelope;
                         if (!string.IsNullOrEmpty(newSheet.ExamDate)) matchingSheet.ExamDate = newSheet.ExamDate;
                         if (!string.IsNullOrEmpty(newSheet.ExamTime)) matchingSheet.ExamTime = newSheet.ExamTime;
+                        if (newSheet.MaxMarks > 0) existingSheet.MaxMarks = newSheet.MaxMarks;
+                        if (!string.IsNullOrEmpty(newSheet.Duration)) existingSheet.Duration = newSheet.Duration;
+                        if (newSheet.LanguageId != null && newSheet.LanguageId.Count > 0) existingSheet.LanguageId = newSheet.LanguageId;
+                        if (!string.IsNullOrEmpty(newSheet.NEPCode)) existingSheet.NEPCode = newSheet.NEPCode;
+                        if (!string.IsNullOrEmpty(newSheet.PrivateCode)) existingSheet.PrivateCode = newSheet.PrivateCode;
+                        if (newSheet.QPId > 0) existingSheet.QPId = newSheet.QPId;
+                        if (newSheet.MSSStatus != 0) existingSheet.MSSStatus = newSheet.MSSStatus;
+                        if (newSheet.TTFStatus != 0) existingSheet.TTFStatus = newSheet.TTFStatus;
+                        if (newSheet.Status != 0) existingSheet.Status = newSheet.Status;
                     }
                 }
             }
@@ -1143,10 +1195,69 @@ public class QuantitySheetController : ControllerBase
     [HttpGet("CatchByproject")]
     public async Task<ActionResult<IEnumerable<object>>> CatchByproject(int ProjectId)
     {
+        // Step 1: Fetch QuantitySheets
+        var quantitySheets = await _context.QuantitySheets
+            .Where(r => r.ProjectId == ProjectId && r.StopCatch == 0)
+            .ToListAsync();
 
-        return await _context.QuantitySheets.Where(r => r.ProjectId == ProjectId && r.StopCatch == 0).ToListAsync();
+        // Step 2: Fetch LanguageIds from the QuantitySheets
+        var languageIds = quantitySheets
+            .SelectMany(q => q.LanguageId) // Assuming LanguageId is a List<int>
+            .Distinct() // Get distinct LanguageIds
+            .ToList();
+
+        // Step 3: Fetch Languages based on the LanguageIds
+        var languages = await _context.Languages
+            .Where(l => languageIds.Contains(l.LanguageId))
+            .Select(l => new { l.LanguageId, l.Languages }) // Adjust the property names as needed
+            .ToListAsync();
+
+        // Step 4: Map the languages back to the QuantitySheets
+        var result = quantitySheets.Select(q => new
+        {
+            q.QuantitySheetId,
+            q.CatchNo,
+            q.PaperTitle,
+            q.MaxMarks,
+            q.Duration,
+            q.MSSStatus,
+            q.TTFStatus,
+            q.LanguageId,
+            Languages = languages.Where(l => q.LanguageId.Contains(l.LanguageId)).Select(l => l.Languages).ToList(),
+            q.ExamTypeId,
+            ExamTypes = _context.ExamTypes
+                .Where(e => e.ExamTypeId == q.ExamTypeId)
+                .Select(e => e.TypeName)
+                .FirstOrDefault(),
+            q.PaperNumber,
+            q.ExamDate,
+            q.ExamTime,
+            q.CourseId,
+            CourseName = _context.Courses
+                .Where(c => c.CourseId == q.CourseId)
+                .Select(c => c.CourseName)
+                .FirstOrDefault(),
+            q.SubjectId,
+            SubjectName = _context.Subjects
+                .Where(s => s.SubjectId == q.SubjectId)
+                .Select(s => s.SubjectName)
+                .FirstOrDefault(),
+            q.InnerEnvelope,
+            q.OuterEnvelope,
+            q.LotNo,
+            q.Quantity,
+            q.PercentageCatch,
+            q.ProjectId,
+            q.ProcessId,
+            q.Pages,
+            q.StopCatch,
+            q.QPId,
+            q.NEPCode,
+            q.PrivateCode,
+        }).ToList();
+
+        return result;
     }
-
 
     [Authorize]
     [HttpGet("check-all-quantity-sheets")]
@@ -1560,6 +1671,7 @@ public class QuantitySheetController : ControllerBase
 
         return NoContent(); // Return 204 No Content on successful deletion
     }
+
 
 
 }
