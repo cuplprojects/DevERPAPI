@@ -37,6 +37,7 @@ namespace ERPAPI.Model
 
         [StringLength(30)]
         public string? Duration { get; set; }
+
         public List<int> LanguageId { get; set; } = new List<int>();
         public int ExamTypeId { get; set; }
         [StringLength(45)]
@@ -46,7 +47,9 @@ namespace ERPAPI.Model
         public int MSSStatus { get; set; }
 
         public int? TTFStatus { get; set; }
-      
+
+        public string? StructureOfPaper { get; set; }
+
 
     }
 

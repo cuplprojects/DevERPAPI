@@ -30,7 +30,7 @@ namespace ERPAPI.Controllers
 
             // Check if the QC entry already exists for the QuantitySheetId
             var existingQC = _context.QC
-                                    .FirstOrDefault(x => x.QuantitySheetId == qc.QuantitySheetId);
+                                     .FirstOrDefault(x => x.QuantitySheetId == qc.QuantitySheetId);
 
             if (existingQC != null)
             {
@@ -58,8 +58,28 @@ namespace ERPAPI.Controllers
                     existingQC.C = qc.C.Value;
                 if (qc.D.HasValue)
                     existingQC.D = qc.D.Value;
-                // Save changes for the existing QC entry
-                await _context.SaveChangesAsync();
+
+                if (qc.Status == true)
+                {
+                    // Update the status of the related QuantitySheets
+                    var quantitySheetsToUpdate = _context.QuantitySheets
+                                                          .Where(q => q.QuantitySheetId == qc.QuantitySheetId)
+                                                          .ToList();
+
+                    quantitySheetsToUpdate.ForEach(q => q.MSSStatus = 3); // Set MSSStatus to 3
+
+                    // You can also update the existing QC status here
+                    existingQC.Status = true;
+
+                    // Save all changes in one go
+                    await _context.SaveChangesAsync();
+                }
+                else
+                {
+                    // Save changes if the status is not true
+                    await _context.SaveChangesAsync();
+                }
+
                 return Ok(existingQC); // Return the updated QC
             }
             else
@@ -70,6 +90,7 @@ namespace ERPAPI.Controllers
                 return CreatedAtAction(nameof(GetQCById), new { id = qc.QCId }, qc);
             }
         }
+
 
 
         [HttpGet("{id}")]
@@ -157,8 +178,6 @@ namespace ERPAPI.Controllers
                     MaxMarks = qs.MaxMarks,
                     Duration = qs.Duration,
                     LanguageId = qs.LanguageId,
-
-
                     Series = project.SeriesName, // Default series, adjust as needed
                     Verified = qcGroup.Any() ? new
                     {

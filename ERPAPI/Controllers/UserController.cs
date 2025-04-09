@@ -115,22 +115,7 @@ namespace ERPAPI.Controllers
             }
         }
 
-        // GET: api/User
-        /* [HttpGet("operator")]
-         public async Task<ActionResult<IEnumerable<User>>> GetOperators()
-         {
-             try
-             {
-                 // Retrieve all users from the database
-                 var users = await Task.FromResult(_context.Users.Where(r=>r.RoleId==6).ToList());
-                 return Ok(users);
-             }
-             catch (Exception ex)
-             {
-                 _loggerService.LogError("Failed to retrieve operators", ex.Message, "UserController");
-                 return StatusCode(500, "Failed to retrieve operators");
-             }
-         }*/
+       
 
         [Authorize]
         [HttpGet("operator")]
@@ -154,7 +139,7 @@ namespace ERPAPI.Controllers
                             u.UserName,
                             u.Status,
                             u.MobileNo,
-
+                            u.LocationId,
                             FullName = u.FirstName + " " + u.MiddleName + " " + u.LastName// Concatenate FirstName and MiddleName
                         })
                         .ToList()
@@ -206,7 +191,11 @@ namespace ERPAPI.Controllers
                             user.Address,
                             user.ProfilePicturePath,
                             displayIds,
-
+                            user.LocationId,
+                            LocationName = _context.Locations
+                                .Where(l => l.LocationId == user.LocationId)
+                                .Select(l => l.LocationName)
+                                .FirstOrDefault(),
                             Role = new
                             {
                                 role.RoleId,
@@ -475,6 +464,7 @@ namespace ERPAPI.Controllers
 
                 // Update user properties
                 existingUser.RoleId = updatedUser.RoleId;
+                existingUser.LocationId = updatedUser.LocationId;
                 existingUser.Address = updatedUser.Address;
                 existingUser.MobileNo = updatedUser.MobileNo;
 
@@ -650,9 +640,6 @@ namespace ERPAPI.Controllers
             public int OldPin { get; set; }
             public int NewPin { get; set; }
         }
-
-
-
 
 
 
