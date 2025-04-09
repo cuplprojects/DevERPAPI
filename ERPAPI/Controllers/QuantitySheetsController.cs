@@ -48,15 +48,13 @@ public class QuantitySheetController : ControllerBase
          PaperTitle = q.PaperTitle ?? string.Empty,
          Duration = q.Duration ?? string.Empty,
 
-
          Languages = _context.Languages
-
                 .Where(l => q.LanguageId.Contains(l.LanguageId)) // Assuming LanguageId is a list
                 .Select(l => l.Languages)
                 .ToList(), // Default to empty string if no language found*/
 
          NEPCode = q.NEPCode ?? string.Empty,
-         PrivateCode = q.PrivateCode ?? string.Empty,
+         UniqueCode = q.UniqueCode ?? string.Empty,
          CourseId = q.CourseId,
          CourseName = _context.Courses
                      .Where(c => c.CourseId == q.CourseId)
@@ -184,7 +182,7 @@ public class QuantitySheetController : ControllerBase
                         LanguageId = sheet.LanguageId,
                         ExamTypeId = sheet.ExamTypeId,
                         NEPCode = sheet.NEPCode,
-                        PrivateCode = sheet.PrivateCode,
+                        UniqueCode = sheet.UniqueCode,
                     };
                     adjustedSheets.Add(newSheet);
                 }
@@ -361,7 +359,7 @@ public class QuantitySheetController : ControllerBase
                 LanguageId = qpMaster.LanguageId ?? [0],  // Default empty array
                 ExamTypeId = qpMaster.ExamTypeId ?? 0,
                 NEPCode = qpMaster.NEPCode ?? "",
-                PrivateCode = qpMaster.PrivateCode ?? "",
+                UniqueCode = qpMaster.UniqueCode ?? "",
             };
 
             result.Add(mergedQS);  // Add the merged data for the case when no QuantitySheet is found
@@ -389,7 +387,7 @@ public class QuantitySheetController : ControllerBase
                     LanguageId = qpMaster.LanguageId ?? [0],  // Default empty array if null
                     ExamTypeId = qpMaster.ExamTypeId ?? 0,
                     NEPCode = qpMaster.NEPCode ?? "",
-                    PrivateCode = qpMaster.PrivateCode ?? "",
+                    UniqueCode = qpMaster.UniqueCode ?? "",
                 };
 
                 result.Add(mergedQS);
@@ -773,7 +771,7 @@ public class QuantitySheetController : ControllerBase
                         Duration = sheet.Duration,
                         LanguageId = sheet.LanguageId,
                         NEPCode = sheet.NEPCode,
-                        PrivateCode = sheet.PrivateCode,
+                        UniqueCode = sheet.UniqueCode,
                         QPId = sheet.QPId,
                         MSSStatus = sheet.MSSStatus,
                         TTFStatus = sheet.TTFStatus,
@@ -828,7 +826,7 @@ public class QuantitySheetController : ControllerBase
                 if (!string.IsNullOrEmpty(newSheet.Duration)) existingSheet.Duration = newSheet.Duration;
                 if (newSheet.LanguageId != null && newSheet.LanguageId.Count > 0) existingSheet.LanguageId = newSheet.LanguageId;
                 if (!string.IsNullOrEmpty(newSheet.NEPCode)) existingSheet.NEPCode = newSheet.NEPCode;
-                if (!string.IsNullOrEmpty(newSheet.PrivateCode)) existingSheet.PrivateCode = newSheet.PrivateCode;
+                if (!string.IsNullOrEmpty(newSheet.UniqueCode)) existingSheet.UniqueCode = newSheet.UniqueCode;
                 if (newSheet.QPId > 0) existingSheet.QPId = newSheet.QPId;
                 if (newSheet.MSSStatus != 0) existingSheet.MSSStatus = newSheet.MSSStatus;
                 if (newSheet.TTFStatus != 0) existingSheet.TTFStatus = newSheet.TTFStatus;
@@ -869,7 +867,7 @@ public class QuantitySheetController : ControllerBase
                         if (!string.IsNullOrEmpty(newSheet.Duration)) existingSheet.Duration = newSheet.Duration;
                         if (newSheet.LanguageId != null && newSheet.LanguageId.Count > 0) existingSheet.LanguageId = newSheet.LanguageId;
                         if (!string.IsNullOrEmpty(newSheet.NEPCode)) existingSheet.NEPCode = newSheet.NEPCode;
-                        if (!string.IsNullOrEmpty(newSheet.PrivateCode)) existingSheet.PrivateCode = newSheet.PrivateCode;
+                        if (!string.IsNullOrEmpty(newSheet.UniqueCode)) existingSheet.UniqueCode = newSheet.UniqueCode;
                         if (newSheet.QPId > 0) existingSheet.QPId = newSheet.QPId;
                         if (newSheet.MSSStatus != 0) existingSheet.MSSStatus = newSheet.MSSStatus;
                         if (newSheet.TTFStatus != 0) existingSheet.TTFStatus = newSheet.TTFStatus;
@@ -1010,7 +1008,7 @@ public class QuantitySheetController : ControllerBase
                 r.ExamTypeId,
                 r.QPId,
                 r.NEPCode,
-                r.PrivateCode,
+                r.UniqueCode,
                 r.Status,
             })
             .ToListAsync();
@@ -1067,7 +1065,7 @@ public class QuantitySheetController : ControllerBase
                           current.StopCatch,
                           current.QPId,
                           current.NEPCode,
-                          current.PrivateCode,
+                          current.UniqueCode,
                           current.MaxMarks,
                           current.Duration,
                           current.MSSStatus,
@@ -1117,7 +1115,7 @@ public class QuantitySheetController : ControllerBase
                 r.StopCatch,
                 r.QPId,
                 r.NEPCode,
-                r.PrivateCode,
+                r.UniqueCode,
                 r.Status,
             })
             .ToListAsync();
@@ -1174,7 +1172,7 @@ public class QuantitySheetController : ControllerBase
                           current.StopCatch,
                           current.QPId,
                           current.NEPCode,
-                          current.PrivateCode,
+                          current.UniqueCode,
                           current.MaxMarks,
                           current.Duration,
                           current.MSSStatus,
@@ -1251,7 +1249,7 @@ public class QuantitySheetController : ControllerBase
             q.StopCatch,
             q.QPId,
             q.NEPCode,
-            q.PrivateCode,
+            q.UniqueCode,
         }).ToList();
 
         return result;

@@ -232,7 +232,7 @@ namespace ERPAPI.Controllers
                             GroupName = grp != null ? grp.Name : null,
                             Type = et != null ? et.Type : null,
                             qp.NEPCode,
-                            qp.PrivateCode,
+                            qp.UniqueCode,
                             SubjectName = sub != null ? sub.SubjectName : null,
                             qp.PaperNumber,
                             qp.PaperTitle,
@@ -297,7 +297,7 @@ namespace ERPAPI.Controllers
             join sn in _context.Subjects on qp.SubjectId equals sn.SubjectId into snJoin
             from sn in snJoin.DefaultIfEmpty()
             where (qp.NEPCode.Contains(search) ||
-            qp.PrivateCode.Contains(search) ||
+            qp.UniqueCode.Contains(search) ||
             qp.PaperNumber.Contains(search) ||
             crs.CourseName.Contains(search) ||
             qp.PaperTitle.Contains(search)) &&

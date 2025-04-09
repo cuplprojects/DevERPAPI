@@ -11,7 +11,7 @@ namespace ERPAPI.Model
         public int GroupId { get; set; }
         public int? TypeId { get; set; }
         public string? NEPCode { get; set; }
-        public string? PrivateCode { get; set; }
+        public string? UniqueCode { get; set; }
         public int? SubjectId { get; set; }
         public string? PaperNumber { get; set; }
         public string? PaperTitle { get; set; }
