@@ -47,7 +47,7 @@ public class QuantitySheetController : ControllerBase
          PaperNumber = q.PaperNumber ?? string.Empty,
          PaperTitle = q.PaperTitle ?? string.Empty,
          Duration = q.Duration ?? string.Empty,
-         Languages = _context.Languages
+       /*  Languages = _context.Languages
                 .Where(l => q.LanguageId.Contains(l.LanguageId)) // Assuming LanguageId is a list
                 .Select(l => l.Languages)
                 .ToList(), // Default to empty string if no language found*/
