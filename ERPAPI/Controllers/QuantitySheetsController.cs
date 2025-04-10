@@ -27,67 +27,6 @@ public class QuantitySheetController : ControllerBase
         _processService = processService;
         _loggerService = loggerService;
     }
-    [HttpGet("byProject/{projectId}")]
-    public async Task<ActionResult<IEnumerable<QuantitySheet>>> GetByProjectId(int projectId)
-    {
-        var result = await _context.QuantitySheets
-     .Where(q => q.ProjectId == projectId)
-
-
-     .Select(q => new
-
-
-     {
-         QuantitySheetId = q.QuantitySheetId,
-         CatchNo = q.CatchNo ?? string.Empty,
-         ExamDate = q.ExamDate ?? string.Empty,
-         ExamTime = q.ExamTime ?? string.Empty,
-         InnerEnvelope = q.InnerEnvelope ?? string.Empty,
-         LotNo = q.LotNo ?? string.Empty,
-         PaperNumber = q.PaperNumber ?? string.Empty,
-         PaperTitle = q.PaperTitle ?? string.Empty,
-         Duration = q.Duration ?? string.Empty,
-       /*  Languages = _context.Languages
-                .Where(l => q.LanguageId.Contains(l.LanguageId)) // Assuming LanguageId is a list
-                .Select(l => l.Languages)
-                .ToList(), // Default to empty string if no language found*/
-         NEPCode = q.NEPCode ?? string.Empty,
-         UniqueCode = q.UniqueCode ?? string.Empty,
-         CourseId = q.CourseId,
-         CourseName = _context.Courses
-                     .Where(c => c.CourseId == q.CourseId)
-                     .Select(c => c.CourseName)
-                     .FirstOrDefault() ?? string.Empty,
-         SubjectId = q.SubjectId,
-         SubjectName = _context.Subjects
-                     .Where(s => s.SubjectId == q.SubjectId)
-                     .Select(s => s.SubjectName)
-                     .FirstOrDefault() ?? string.Empty,
-         ExamTypeId = q.ExamTypeId,
-         MaxMarks = q.MaxMarks,
-         Pages = q.Pages,
-         PercentageCatch = q.PercentageCatch,
-         ProcessId = q.ProcessId,
-         ProjectId = q.ProjectId,
-         Quantity = q.Quantity,
-         Status = q.Status,
-         StopCatch = q.StopCatch,
-         TTFStatus = q.TTFStatus,
-         MSSStatus = q.MSSStatus,
-         QPId = q.QPId,
-         OuterEnvelope = q.OuterEnvelope,
-     })
-     .ToListAsync();
-
-
-        if (result == null || result.Count == 0)
-        {
-            return NotFound($"No QuantitySheets found for ProjectId {projectId}");
-        }
-
-        return Ok(result);
-    }
-
 
     [Authorize]
 
@@ -257,6 +196,18 @@ public class QuantitySheetController : ControllerBase
         return Ok(processedNewSheets);
     }
 
+    [HttpGet("{id}")]
+    public async Task<ActionResult<QuantitySheet>> GetById(int id)
+    {
+        var quantitySheet = await _context.QuantitySheets.Where(q=> q.QuantitySheetId == id).ToListAsync();
+
+        if (quantitySheet == null)
+        {
+            return NotFound($"QuantitySheet with ID {id} not found.");
+        }
+
+        return Ok(quantitySheet);
+    }
 
     //[Authorize]
     [HttpPut("update/{id}")]
@@ -285,6 +236,21 @@ public class QuantitySheetController : ControllerBase
         existingSheet.InnerEnvelope = updatedSheet.InnerEnvelope;
         existingSheet.OuterEnvelope = updatedSheet.OuterEnvelope;
         existingSheet.Quantity = updatedSheet.Quantity;
+        existingSheet.LotNo = updatedSheet.LotNo;
+        existingSheet.MaxMarks = updatedSheet.MaxMarks;
+        existingSheet.Duration = updatedSheet.Duration;
+        existingSheet.LanguageId = updatedSheet.LanguageId;
+        existingSheet.NEPCode = updatedSheet.NEPCode;
+        existingSheet.UniqueCode = updatedSheet.UniqueCode;
+        existingSheet.ExamTypeId = updatedSheet.ExamTypeId;
+        existingSheet.QPId = updatedSheet.QPId;
+        existingSheet.MSSStatus = updatedSheet.MSSStatus;
+        existingSheet.TTFStatus = updatedSheet.TTFStatus;
+        existingSheet.Status = updatedSheet.Status;
+        existingSheet.ProcessId = updatedSheet.ProcessId;
+        existingSheet.StopCatch = updatedSheet.StopCatch;
+        existingSheet.PercentageCatch = updatedSheet.PercentageCatch;
+
 
         // Save the changes to the database
         try
@@ -314,6 +280,8 @@ public class QuantitySheetController : ControllerBase
             return StatusCode(500, "An error occurred while updating the record.");
         }
     }
+
+
     [HttpGet("MergeQPintoQS")]
     public async Task<IActionResult> MergeQPintoQS(int QPId)
     {
@@ -397,7 +365,6 @@ public class QuantitySheetController : ControllerBase
     }
 
 
-
     [Authorize]
     [HttpPost("ReleaseForProduction")]
     public async Task<IActionResult> ReleaseForProduction([FromBody] LotRequest request)
@@ -437,10 +404,7 @@ public class QuantitySheetController : ControllerBase
     }
 
 
-
-
-
-
+ 
     [Authorize]
     [HttpGet("calculate-date-range")]
     public async Task<IActionResult> CalculateDateRange([FromQuery] string selectedLot, [FromQuery] int projectId)
@@ -616,7 +580,7 @@ public class QuantitySheetController : ControllerBase
         }
     }
 
-    [Authorize]
+   // [Authorize]
     [HttpPut("{id}")]
     public async Task<IActionResult> PutQuantitySheet(int id, QuantitySheet quantity)
     {
@@ -639,7 +603,6 @@ public class QuantitySheetController : ControllerBase
         // Loop through each matching record and apply the update
         foreach (var sheet in quantitySheetsToUpdate)
         {
-            // Assuming that processId is the field being updated
             sheet.ProcessId = quantity.ProcessId; // Update other fields as necessary
         }
 
@@ -681,6 +644,39 @@ public class QuantitySheetController : ControllerBase
 
         // Update the MSSStatus to 2
         existingQuantitySheet.MSSStatus = 2;
+
+        // Save changes to the database
+        try
+        {
+            await _context.SaveChangesAsync(); // Save the changes
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (!QuantitySheetExists(id))
+            {
+                return NotFound();
+            }
+            else
+            {
+                throw;
+            }
+        }
+
+        return NoContent(); // Return 204 No Content status to indicate success
+    }
+
+    [HttpPut("UpdateTTF")]
+    public async Task<IActionResult> UpdateTTF(int id, [FromQuery] int ttfStatus)
+    {
+        // Retrieve the QuantitySheet from the database by the provided id
+        var existingQuantitySheet = await _context.QuantitySheets.FindAsync(id);
+        if (existingQuantitySheet == null)
+        {
+            return NotFound();
+        }
+
+        // Only update the TTFStatus
+        existingQuantitySheet.TTFStatus = ttfStatus;
 
         // Save changes to the database
         try
@@ -1185,7 +1181,7 @@ public class QuantitySheetController : ControllerBase
         return Ok(result);
     }
 
-    [Authorize]
+   // [Authorize]
     [HttpGet("CatchByproject")]
     public async Task<ActionResult<IEnumerable<object>>> CatchByproject(int ProjectId)
     {
