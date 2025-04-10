@@ -27,10 +27,12 @@ namespace ERPAPI.Controllers
             {
                 return BadRequest("QuantitySheetId is required.");
             }
-
+            Console.WriteLine($"Received QC with QuantitySheetId: {qc.Status}");
             // Check if the QC entry already exists for the QuantitySheetId
             var existingQC = _context.QC
-                                     .FirstOrDefault(x => x.QuantitySheetId == qc.QuantitySheetId);
+               
+                .FirstOrDefault(x => x.QuantitySheetId == qc.QuantitySheetId);
+
 
             if (existingQC != null)
             {
@@ -59,26 +61,32 @@ namespace ERPAPI.Controllers
                 if (qc.D.HasValue)
                     existingQC.D = qc.D.Value;
 
-                if (qc.Status == true)
+                if (qc.Status.HasValue && qc.Status.Value == true)
                 {
-                    // Update the status of the related QuantitySheets
+                    // Log or debug the value of qc.Status here
+                    Console.WriteLine($"Status is true, updating MSSStatus.");
+
+                    // Update the MSSStatus for QuantitySheets
                     var quantitySheetsToUpdate = _context.QuantitySheets
-                                                          .Where(q => q.QuantitySheetId == qc.QuantitySheetId)
-                                                          .ToList();
+                                                         .Where(q => q.QuantitySheetId == qc.QuantitySheetId)
+                                                         .ToList();
 
-                    quantitySheetsToUpdate.ForEach(q => q.MSSStatus = 3); // Set MSSStatus to 3
-
-                    // You can also update the existing QC status here
-                    existingQC.Status = true;
-
-                    // Save all changes in one go
-                    await _context.SaveChangesAsync();
+                    if (quantitySheetsToUpdate.Any())
+                    {
+                        quantitySheetsToUpdate.ForEach(q => q.MSSStatus = 3); // Set MSSStatus to 3
+                        await _context.SaveChangesAsync(); // Save changes to the database
+                    }
+                    else
+                    {
+                        Console.WriteLine($"No QuantitySheet found with QuantitySheetId {qc.QuantitySheetId}");
+                    }
                 }
                 else
                 {
-                    // Save changes if the status is not true
-                    await _context.SaveChangesAsync();
+                    // Optionally log when Status is either null or not true
+                    Console.WriteLine($"qc.Status is either null or not true.");
                 }
+
 
                 return Ok(existingQC); // Return the updated QC
             }
