@@ -16,7 +16,6 @@ namespace ERPAPI.Controllers
         {
             _context = context;
         }
-
         [HttpPost]
         public async Task<IActionResult> CreateQC([FromBody] QC qc)
         {
@@ -24,18 +23,17 @@ namespace ERPAPI.Controllers
                 return BadRequest("Invalid QC data.");
 
             if (qc.QuantitySheetId == 0)
-            {
                 return BadRequest("QuantitySheetId is required.");
-            }
-            Console.WriteLine($"Received QC with QuantitySheetId: {qc.Status}");
-            // Check if the QC entry already exists for the QuantitySheetId
-            var existingQC = _context.QC
-               
-                .FirstOrDefault(x => x.QuantitySheetId == qc.QuantitySheetId);
 
+            Console.WriteLine($"Received QC with QuantitySheetId: {qc.QuantitySheetId}");
+            Console.WriteLine($"qc.Status.HasValue: {qc.Status.HasValue}, qc.Status: {qc.Status}");
+
+            var existingQC = _context.QC
+                .FirstOrDefault(x => x.QuantitySheetId == qc.QuantitySheetId);
 
             if (existingQC != null)
             {
+                // Update fields
                 if (qc.Language.HasValue)
                     existingQC.Language = qc.Language.Value;
                 if (qc.MaxMarks.HasValue)
@@ -60,43 +58,42 @@ namespace ERPAPI.Controllers
                     existingQC.C = qc.C.Value;
                 if (qc.D.HasValue)
                     existingQC.D = qc.D.Value;
-
-                if (qc.Status.HasValue && qc.Status.Value == true)
-                {
-                    // Log or debug the value of qc.Status here
-                    Console.WriteLine($"Status is true, updating MSSStatus.");
-
-                    // Update the MSSStatus for QuantitySheets
-                    var quantitySheetsToUpdate = _context.QuantitySheets
-                                                         .Where(q => q.QuantitySheetId == qc.QuantitySheetId)
-                                                         .ToList();
-
-                    if (quantitySheetsToUpdate.Any())
-                    {
-                        quantitySheetsToUpdate.ForEach(q => q.MSSStatus = 3); // Set MSSStatus to 3
-                        await _context.SaveChangesAsync(); // Save changes to the database
-                    }
-                    else
-                    {
-                        Console.WriteLine($"No QuantitySheet found with QuantitySheetId {qc.QuantitySheetId}");
-                    }
-                }
-                else
-                {
-                    // Optionally log when Status is either null or not true
-                    Console.WriteLine($"qc.Status is either null or not true.");
-                }
-
-
-                return Ok(existingQC); // Return the updated QC
             }
             else
             {
-                // If the entry does not exist, add a new QC
+                // Add new QC
                 _context.QC.Add(qc);
-                await _context.SaveChangesAsync();
-                return CreatedAtAction(nameof(GetQCById), new { id = qc.QCId }, qc);
             }
+
+            // Save QC changes (either added or updated)
+            await _context.SaveChangesAsync();
+
+            // ✅ After saving, check status and update MSSStatus if needed
+            if (qc.Status.HasValue && qc.Status.Value == true)
+            {
+                Console.WriteLine($"Status is true, updating MSSStatus.");
+
+                var quantitySheetsToUpdate = _context.QuantitySheets
+                    .Where(q => q.QuantitySheetId == qc.QuantitySheetId)
+                    .ToList();
+                Console.WriteLine($"Found {quantitySheetsToUpdate.Count} QuantitySheet(s) to update.");
+
+                if (quantitySheetsToUpdate.Any())
+                {
+                    quantitySheetsToUpdate.ForEach(q => q.MSSStatus = 3);
+                    await _context.SaveChangesAsync();
+                }
+                else
+                {
+                    Console.WriteLine($"No QuantitySheet found with QuantitySheetId {qc.QuantitySheetId}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"qc.Status is either null or not true.");
+            }
+
+            return Ok(qc);
         }
 
 
