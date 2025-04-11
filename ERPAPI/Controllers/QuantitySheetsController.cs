@@ -901,6 +901,57 @@ public class QuantitySheetController : ControllerBase
         return Ok(processedNewSheets);
     }
 
+    [HttpPost("UpdateLotNo")]
+    public async Task<IActionResult> UpdateLotNo(string StartDate, string EndDate, string newLotNo, int projectId)
+    {
+        if (string.IsNullOrEmpty(newLotNo) || string.IsNullOrEmpty(StartDate) || string.IsNullOrEmpty(EndDate))
+        {
+            return BadRequest("New LotNo is required.");
+        }
+
+        if (!DateTime.TryParse(StartDate, out var start) || !DateTime.TryParse(EndDate, out var end))
+        {
+            return BadRequest("Invalid date format.");
+        }
+
+        // Pull to memory before parsing
+        var quantitySheet = _context.QuantitySheets
+      .Where(p => p.ProjectId == projectId)
+      .AsEnumerable() // now IEnumerable, not IQueryable
+      .Where(p => DateTime.TryParse(p.ExamDate, out var examDate) && examDate >= start && examDate <= end)
+      .ToList(); // ✅ use ToList(), not ToListAsync()
+
+
+        if (!quantitySheet.Any())
+        {
+            return NotFound("No matching QuantitySheets found.");
+        }
+
+        foreach (var sheet in quantitySheet)
+        {
+            sheet.LotNo = newLotNo;
+        }
+
+        var quantitySheetIds = quantitySheet.Select(q => q.QuantitySheetId).ToList();
+
+        var relatedTransactions = await _context.Transaction
+            .Where(t => quantitySheetIds.Contains(t.QuantitysheetId))
+            .ToListAsync();
+
+        if (!int.TryParse(newLotNo, out int newLotNoInt))
+        {
+            return BadRequest("Invalid LotNo. Must be an integer.");
+        }
+
+        foreach (var transaction in relatedTransactions)
+        {
+            transaction.LotNo = newLotNoInt;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
 
 
     [Authorize]

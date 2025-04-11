@@ -90,7 +90,22 @@ namespace ERPAPI.Controllers
             }
             else
             {
-                Console.WriteLine($"qc.Status is either null or not true.");
+
+                var quantitySheetsToUpdate = _context.QuantitySheets
+                    .Where(q => q.QuantitySheetId == qc.QuantitySheetId)
+                    .ToList();
+                Console.WriteLine($"Found {quantitySheetsToUpdate.Count} QuantitySheet(s) to update.");
+
+                if (quantitySheetsToUpdate.Any())
+                {
+                    quantitySheetsToUpdate.ForEach(q => q.MSSStatus = 4);
+                    await _context.SaveChangesAsync();
+                }
+                else
+                {
+                    Console.WriteLine($"No QuantitySheet found with QuantitySheetId {qc.QuantitySheetId}");
+                }
+
             }
 
             return Ok(qc);
