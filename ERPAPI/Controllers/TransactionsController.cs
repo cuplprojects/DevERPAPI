@@ -91,7 +91,7 @@ namespace ERPAPI.Controllers
         {
             // Fetch quantity sheet data
             var quantitySheetData = await _context.QuantitySheets
-                .Where(q => q.ProjectId == projectId && q.Status == 1 && q.StopCatch == 0)
+                .Where(q => q.ProjectId == projectId && q.MSSStatus == 3 && q.StopCatch == 0)
                 .ToListAsync();
 
             // Fetch transaction data and parse alarm messages if needed
