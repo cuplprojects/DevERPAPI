@@ -91,7 +91,7 @@ namespace ERPAPI.Controllers
         {
             // Fetch quantity sheet data
             var quantitySheetData = await _context.QuantitySheets
-                .Where(q => q.ProjectId == projectId && q.Status == 1 && q.StopCatch == 0)
+                .Where(q => q.ProjectId == projectId && q.MSSStatus == 3 && q.StopCatch == 0)
                 .ToListAsync();
 
             // Fetch transaction data and parse alarm messages if needed
@@ -193,7 +193,8 @@ namespace ERPAPI.Controllers
                             q.Quantity,
                             q.Pages,
                             q.PercentageCatch,
-
+                            q.TTFStatus,
+                            q.MSSStatus,
                             SeriesName = seriesLetter,  // Assign the SeriesName here
                             ProcessIds = q.ProcessId,   // Assuming ProcessIds is a list, map it directly
                         };
@@ -233,7 +234,8 @@ namespace ERPAPI.Controllers
                     q.Quantity,
                     q.PercentageCatch,
                     q.SeriesName,  // Directly use the SeriesName
-
+                    q.TTFStatus,
+                    q.MSSStatus,
                     ProcessIds = q.ProcessIds, // Assuming ProcessIds is a list, map it directly
                     Transactions = transactionsWithAlarms
                         .Where(t => t.QuantitysheetId == q.QuantitySheetId) // Only transactions matching the QuantitySheetId
