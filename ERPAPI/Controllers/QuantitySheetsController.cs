@@ -29,7 +29,7 @@ public class QuantitySheetController : ControllerBase
         _processService = processService;
         _loggerService = loggerService;
     }
-  
+
     [Authorize]
 
     [HttpPost]
@@ -224,6 +224,7 @@ public class QuantitySheetController : ControllerBase
 
         // Retrieve the existing QuantitySheet from the database
         var existingSheet = await _context.QuantitySheets.FirstOrDefaultAsync(sheet => sheet.QuantitySheetId == id);
+        Console.WriteLine($"Updating QuantitySheet with ID {id}");
 
         if (existingSheet == null)
         {
@@ -243,7 +244,8 @@ public class QuantitySheetController : ControllerBase
         existingSheet.LotNo = updatedSheet.LotNo;
         existingSheet.MaxMarks = updatedSheet.MaxMarks;
         existingSheet.Duration = updatedSheet.Duration;
-        existingSheet.LanguageId = updatedSheet.LanguageId;
+        existingSheet.LanguageId.Clear();
+        existingSheet.LanguageId.AddRange(updatedSheet.LanguageId);
         existingSheet.NEPCode = updatedSheet.NEPCode;
         existingSheet.UniqueCode = updatedSheet.UniqueCode;
         existingSheet.ExamTypeId = updatedSheet.ExamTypeId;
@@ -251,9 +253,9 @@ public class QuantitySheetController : ControllerBase
         existingSheet.MSSStatus = updatedSheet.MSSStatus;
         existingSheet.TTFStatus = updatedSheet.TTFStatus;
         existingSheet.Status = updatedSheet.Status;
-        existingSheet.ProcessId = updatedSheet.ProcessId;
         existingSheet.StopCatch = updatedSheet.StopCatch;
         existingSheet.PercentageCatch = updatedSheet.PercentageCatch;
+        
 
 
         // Save the changes to the database
