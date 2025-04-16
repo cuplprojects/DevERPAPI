@@ -16,6 +16,7 @@ namespace ERPAPI.Controllers
         {
             _context = context;
         }
+
         [HttpPost]
         public async Task<IActionResult> CreateQC([FromBody] QC qc)
         {
@@ -130,7 +131,14 @@ namespace ERPAPI.Controllers
             var quantitySheets = await _context.QuantitySheets
                                                 .Where(p => p.ProjectId == projectId)
                                                 .ToListAsync();
-
+            var project = await _context.Projects
+                                .FirstOrDefaultAsync(p => p.ProjectId == projectId);
+            var abcd = await _context.ABCD
+                                .Where(p => p.GroupId == project.GroupId)
+                                .FirstOrDefaultAsync();
+            var subjects = await _context.Subjects.ToDictionaryAsync(s => s.SubjectId, s => s.SubjectName);
+            var courses = await _context.Courses.ToDictionaryAsync(c => c.CourseId, c => c.CourseName);
+            var sessions = await _context.Sessions.ToDictionaryAsync(s => s.SessionId, s => s.session);
             // Perform a left join with the QC table based on QuantitySheetId
             var result = quantitySheets
                          .GroupJoin(_context.QC,
@@ -149,6 +157,10 @@ namespace ERPAPI.Controllers
                              x.QuantitySheet.LanguageId,
                              x.QuantitySheet.MaxMarks,
                              x.QuantitySheet.Duration,
+                             Av = abcd != null ? ResolveTemplate(abcd.A, x.QuantitySheet, project, subjects, courses, sessions, abcd.SessionFormat) : null,
+                             Bv = abcd != null ? GetPropertyValue(x.QuantitySheet, abcd.B, subjects, courses, sessions) : null,
+                             Cv = abcd != null ? GetPropertyValue(x.QuantitySheet, abcd.C, subjects, courses, sessions) : null,
+                             Dv = abcd != null ? GetPropertyValue(x.QuantitySheet, abcd.D, subjects, courses, sessions) : null,
                              QCId = qc?.QCId, 
                              Languages = qc?.Language,
                              MaximumMarks = qc?.MaxMarks,
@@ -173,14 +185,28 @@ namespace ERPAPI.Controllers
         {
             // Fetch QuantitySheets for the given projectId
             var quantitySheets = await _context.QuantitySheets
-                                                .Where(q => q.ProjectId == projectId && q.MSSStatus ==2)
+                                                .Where(q => q.ProjectId == projectId && q.MSSStatus >=2)
                                                 .ToListAsync();
 
             var project = await _context.Projects
-                                .Where(p => p.ProjectId == projectId)
-                                .Select(p => new { p.SeriesName })
-                                .FirstOrDefaultAsync();
+                                .FirstOrDefaultAsync(p => p.ProjectId == projectId);
 
+            var abcd = await _context.ABCD
+                              .Where(p => p.GroupId == project.GroupId)
+                              .FirstOrDefaultAsync();
+            var subjects = await _context.Subjects.ToDictionaryAsync(s => s.SubjectId, s => s.SubjectName);
+            var courses = await _context.Courses.ToDictionaryAsync(c => c.CourseId, c => c.CourseName);
+            var sessions = await _context.Sessions.ToDictionaryAsync(s => s.SessionId, s => s.session);
+            var languageIds = quantitySheets
+           .SelectMany(q => q.LanguageId) // Assuming LanguageId is a List<int>
+           .Distinct() // Get distinct LanguageIds
+           .ToList();
+
+            // Step 3: Fetch Languages based on the LanguageIds
+            var languages = await _context.Languages
+                .Where(l => languageIds.Contains(l.LanguageId))
+                .Select(l => new { l.LanguageId, l.Languages }) // Adjust the property names as needed
+                .ToListAsync();
             if (project == null)
             {
                 return NotFound($"Project with ID {projectId} not found.");
@@ -198,21 +224,29 @@ namespace ERPAPI.Controllers
                     MaxMarks = qs.MaxMarks,
                     Duration = qs.Duration,
                     LanguageId = qs.LanguageId,
+                    Language = languages.Where(l => qs.LanguageId.Contains(l.LanguageId)).Select(l => l.Languages).ToList(),
+                    A = abcd != null ? ResolveTemplate(abcd.A, qs, project, subjects, courses, sessions, abcd.SessionFormat) : null,
+                    B = abcd != null ? GetPropertyValue(qs, abcd.B, subjects, courses, sessions) : null,
+                    C = abcd != null ? GetPropertyValue(qs, abcd.C, subjects, courses, sessions) : null,
+                    D = abcd != null ? GetPropertyValue(qs, abcd.D, subjects, courses, sessions) : null,
                     Series = project.SeriesName, // Default series, adjust as needed
                     Verified = qcGroup.Any() ? new
                     {
                         // Use actual values from the QC group if available
-                        CatchNo = qs.CatchNo,  // Use actual value or false if null
                         Language = qcGroup.FirstOrDefault()?.Language ?? false,  // Use actual value or false if null
                         MaxMarks = qcGroup.FirstOrDefault()?.MaxMarks ?? false,  // Use actual value or false if null
                         Duration = qcGroup.FirstOrDefault()?.Duration ?? false,  // Use actual value or false if null
                         Structure = qcGroup.FirstOrDefault()?.StructureOfPaper ?? false,  // Use actual value or false if null
                         Series = qcGroup.FirstOrDefault()?.Series ?? false,  // Use actual value or false if null
-                        Status = qcGroup.FirstOrDefault()?.Status ?? false // Use actual Status or 0 if null
+                        Status = qcGroup.FirstOrDefault()?.Status ?? false, // Use actual Status or 0 if null
+                        A = qcGroup.FirstOrDefault()?.A ?? false,
+                        B = qcGroup.FirstOrDefault()?.B ?? false,
+                        C = qcGroup.FirstOrDefault()?.C ?? false,
+                        D = qcGroup.FirstOrDefault()?.D ?? false,
                     } : null, // Only include Verified if qcGroup exists
                     QC = qcGroup.FirstOrDefault() // Get the first QC object or null if no match
                 })
-    
+
      .Select(x => new
      {
          x.CatchNo,
@@ -221,6 +255,11 @@ namespace ERPAPI.Controllers
          x.Duration,
          x.MaxMarks,
          x.Series,
+         x.Language,
+         x.A,
+         x.B,
+         x.C,
+         x.D,
          Verified = x.Verified // Return Verified with actual values from QC
      })
      .ToList();
@@ -228,6 +267,108 @@ namespace ERPAPI.Controllers
             return Ok(result);
         }
 
+        private string ResolveTemplate(string template, object quantitySheet, Project project,
+    Dictionary<int, string> subjects,
+    Dictionary<int, string> courses,
+    Dictionary<int, string> sessions,
+     string sessionFormat)
+        {
+            var tokens = template.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var resolvedParts = new List<string>();
+
+            foreach (var token in tokens)
+            {
+                if (token.EndsWith("Id", StringComparison.OrdinalIgnoreCase))
+                {
+                    object idValue = null;
+
+                    // Check if it's in QuantitySheet
+                    var prop = quantitySheet.GetType().GetProperty(token);
+                    if (prop != null)
+                    {
+                        idValue = prop.GetValue(quantitySheet);
+                    }
+                    // Or in Project
+                    else if (project != null)
+                    {
+                        prop = project.GetType().GetProperty(token);
+                        if (prop != null)
+                        {
+                            idValue = prop.GetValue(project);
+                        }
+                    }
+
+                    if (idValue != null)
+                    {
+                        var id = Convert.ToInt32(idValue);
+
+                        if (token == "SubjectId" && subjects.TryGetValue(id, out var subjectName))
+                            resolvedParts.Add(subjectName);
+                        else if (token == "CourseId" && courses.TryGetValue(id, out var courseName))
+                            resolvedParts.Add(courseName);
+                        else if (token == "SessionId" && sessions.TryGetValue(id, out var sessionName))
+                            resolvedParts.Add(FormatSessionName(sessionName, sessionFormat));
+                        else
+                            resolvedParts.Add(id.ToString()); // fallback to raw ID
+                    }
+                }
+                else
+                {
+                    // Literal text
+                    resolvedParts.Add(token);
+                }
+            }
+
+            return string.Join(" ", resolvedParts);
+        }
+        private string FormatSessionName(string sessionName, string format)
+        {
+            if (string.IsNullOrEmpty(sessionName) || !sessionName.Contains('-'))
+                return sessionName;
+
+            var parts = sessionName.Split('-');
+            if (parts.Length != 2) return sessionName;
+
+            var fullStart = parts[0]; // e.g. 2023
+            var fullEnd = parts[1];   // e.g. 2024
+            var shortStart = fullStart.Substring(2); // e.g. 23
+            var shortEnd = fullEnd.Substring(2);     // e.g. 24
+
+            return format switch
+            {
+                "2022-23" => $"{fullStart}-{shortEnd}",
+                "22-23" => $"{shortStart}-{shortEnd}",
+                "22-2023" => $"{shortStart}-{fullEnd}",
+                _ => $"{fullStart}-{fullEnd}",
+            };
+        }
+
+        private object GetPropertyValue(object obj, string propertyName,
+     Dictionary<int, string> subjects,
+     Dictionary<int, string> courses,
+     Dictionary<int, string> sessions)
+        {
+            var value = obj?.GetType().GetProperty(propertyName)?.GetValue(obj, null);
+
+            if (value == null) return null;
+
+            if (propertyName.EndsWith("Id"))
+            {
+                var id = Convert.ToInt32(value);
+
+                if (propertyName == "SubjectId" && subjects.ContainsKey(id))
+                    return subjects[id];
+                if (propertyName == "CourseId" && courses.ContainsKey(id))
+                    return courses[id];
+                if (propertyName == "SessionId" && sessions.ContainsKey(id))
+                    return sessions[id];
+                // Add more if you have other Ids like PaperId, DepartmentId, etc.
+            }
+
+            return value;
+        }
+
+   
 
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateQC(int id, [FromBody] QC updatedQC)
