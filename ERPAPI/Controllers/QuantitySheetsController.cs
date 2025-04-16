@@ -11,6 +11,8 @@ using Microsoft.CodeAnalysis;
 using Microsoft.AspNetCore.Authorization;
 using ERPAPI.Services;
 using Microsoft.CodeAnalysis.Host;
+using System.Reflection.Emit;
+using System.Text.RegularExpressions;
 
 
 [ApiController]
@@ -54,7 +56,7 @@ public class QuantitySheetController : ControllerBase
             .Where(p => p.ProjectId == projectId)
             .Select(p => new { p.TypeId, p.NoOfSeries })
             .FirstOrDefaultAsync();
-
+      
         if (project == null)
         {
             Console.WriteLine($"Project with ProjectId {projectId} not found.");
@@ -86,6 +88,7 @@ public class QuantitySheetController : ControllerBase
 
             foreach (var sheet in newSheets)
             {
+               
                 var adjustedQuantity = sheet.Quantity / noOfSeries;
                 Console.WriteLine($"Adjusted Quantity for CatchNo {sheet.CatchNo}: {adjustedQuantity}");
 
@@ -134,6 +137,7 @@ public class QuantitySheetController : ControllerBase
                 Console.WriteLine($"LotNo is missing for CatchNo {sheet.CatchNo}.");
                 return BadRequest($"The LotNo field is required for sheet with CatchNo: {sheet.CatchNo}.");
             }
+      
         }
 
         var existingSheets = await _context.QuantitySheets
