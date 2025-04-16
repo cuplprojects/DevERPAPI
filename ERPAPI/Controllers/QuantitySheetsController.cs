@@ -284,6 +284,84 @@ public class QuantitySheetController : ControllerBase
     }
 
 
+    [HttpPut("bulk-update")]
+    public async Task<IActionResult> BulkUpdate([FromBody] List<QuantitySheet> updatedSheets)
+    {
+        if (updatedSheets == null || !updatedSheets.Any())
+        {
+            return BadRequest("No data provided.");
+        }
+
+        var updatedIds = new List<int>();
+
+        foreach (var updatedSheet in updatedSheets)
+        {
+            // Retrieve the existing QuantitySheet from the database
+            var existingSheet = await _context.QuantitySheets.FirstOrDefaultAsync(sheet => sheet.QuantitySheetId == updatedSheet.QuantitySheetId);
+
+            if (existingSheet == null)
+            {
+                return NotFound($"QuantitySheet with ID {updatedSheet.QuantitySheetId} not found.");
+            }
+
+            // Update the fields with the new values
+            existingSheet.PaperTitle = updatedSheet.PaperTitle;
+            existingSheet.PaperNumber = updatedSheet.PaperNumber;
+            existingSheet.CourseId = updatedSheet.CourseId;
+            existingSheet.SubjectId = updatedSheet.SubjectId;
+            existingSheet.ExamDate = updatedSheet.ExamDate;
+            existingSheet.ExamTime = updatedSheet.ExamTime;
+            existingSheet.InnerEnvelope = updatedSheet.InnerEnvelope;
+            existingSheet.OuterEnvelope = updatedSheet.OuterEnvelope;
+            existingSheet.Quantity = updatedSheet.Quantity;
+            existingSheet.LotNo = updatedSheet.LotNo;
+            existingSheet.MaxMarks = updatedSheet.MaxMarks;
+            existingSheet.Duration = updatedSheet.Duration;
+            existingSheet.LanguageId.Clear();
+            existingSheet.LanguageId.AddRange(updatedSheet.LanguageId);
+            existingSheet.NEPCode = updatedSheet.NEPCode;
+            existingSheet.UniqueCode = updatedSheet.UniqueCode;
+            existingSheet.ExamTypeId = updatedSheet.ExamTypeId;
+            existingSheet.QPId = updatedSheet.QPId;
+            existingSheet.MSSStatus = updatedSheet.MSSStatus;
+            existingSheet.TTFStatus = updatedSheet.TTFStatus;
+            existingSheet.Status = updatedSheet.Status;
+            existingSheet.ProcessId = updatedSheet.ProcessId;
+            existingSheet.StopCatch = updatedSheet.StopCatch;
+            existingSheet.PercentageCatch = updatedSheet.PercentageCatch;
+
+            updatedIds.Add(existingSheet.QuantitySheetId);
+        }
+
+        // Save the changes to the database
+        try
+        {
+            await _context.SaveChangesAsync();
+
+            // Log the update operation
+            _loggerService.LogEvent(
+                "QuantitySheets updated",
+                "QuantitySheet",
+                1, // Replace with actual user ID or triggered by value
+                null,
+                $"QuantitySheetIds: {string.Join(", ", updatedIds)}"
+            );
+
+            return Ok(updatedSheets);
+        }
+        catch (Exception ex)
+        {
+            // Log the error and return an appropriate error response
+            _loggerService.LogError(
+                "Error updating QuantitySheets",
+                ex.Message,
+                "QuantitySheet"
+            );
+            return StatusCode(500, "An error occurred while updating the records.");
+        }
+    }
+
+
     [HttpGet("MergeQPintoQS")]
     public async Task<IActionResult> MergeQPintoQS(int QPId)
     {
