@@ -976,7 +976,7 @@ namespace ERPAPI.Controllers
         }
 
 
-        [Authorize]
+        //[Authorize]
         [HttpGet("combined-percentages")]
 
         public async Task<ActionResult> GetCombinedPercentages(int projectId)
@@ -1179,7 +1179,7 @@ namespace ERPAPI.Controllers
             public double TotalCatchQuantity { get; set; }
         }
 
-        [Authorize]
+        //[Authorize]
         [HttpGet("process-percentages")]
         public async Task<ActionResult> GetProcessPercentages(int projectId)
         {
@@ -1188,7 +1188,7 @@ namespace ERPAPI.Controllers
                 .ToListAsync();
 
             var quantitySheets = await _context.QuantitySheets
-                .Where(qs => qs.ProjectId == projectId && qs.StopCatch == 0)
+                .Where(qs => qs.ProjectId == projectId && qs.MSSStatus == 3)
                 .ToListAsync();
 
             var transactions = await _context.Transaction
@@ -1221,6 +1221,22 @@ namespace ERPAPI.Controllers
                     var totalSheets = lotQuantitySheets.Count(sheet => sheet.ProcessId.Contains(process.ProcessId));
 
                     // If totalSheets is 0, return 100% (since there is nothing to complete)
+                    if(process.ProcessId == 24)
+                    {
+                        completedSheets = quantitySheets.Count(qs =>
+                            qs.LotNo == lotNo &&
+                            qs.ProcessId.Contains(process.ProcessId) &&
+                            qs.MSSStatus == 3
+                        );
+                    }
+                    if (process.ProcessId == 23)
+                    {
+                        completedSheets = quantitySheets.Count(qs =>
+                            qs.LotNo == lotNo &&
+                            qs.ProcessId.Contains(process.ProcessId) &&
+                            qs.MSSStatus >=2
+                        );
+                    }
                     var percentage = totalSheets == 0
                         ? 100
                         : Math.Round((double)completedSheets / totalSheets * 100, 2);
@@ -1271,6 +1287,9 @@ namespace ERPAPI.Controllers
 
             return Ok(result);
         }
+
+
+
 
         [Authorize]
         [HttpGet("process-lot-percentages")]
