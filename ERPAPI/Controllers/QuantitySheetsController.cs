@@ -1322,7 +1322,7 @@ public class QuantitySheetController : ControllerBase
     {
         // Step 1: Fetch QuantitySheets
         var quantitySheets = await _context.QuantitySheets
-            .Where(r => r.ProjectId == ProjectId && r.StopCatch == 0)
+            .Where(r => r.ProjectId == ProjectId && r.MSSStatus!=0)
             .ToListAsync();
 
         // Step 2: Fetch LanguageIds from the QuantitySheets
