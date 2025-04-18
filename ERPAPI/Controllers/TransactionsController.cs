@@ -976,7 +976,7 @@ namespace ERPAPI.Controllers
         }
 
 
-        //[Authorize]
+        [Authorize]
         [HttpGet("combined-percentages")]
 
         public async Task<ActionResult> GetCombinedPercentages(int projectId)
@@ -1179,7 +1179,7 @@ namespace ERPAPI.Controllers
             public double TotalCatchQuantity { get; set; }
         }
 
-        //[Authorize]
+        [Authorize]
         [HttpGet("process-percentages")]
         public async Task<ActionResult> GetProcessPercentages(int projectId)
         {
