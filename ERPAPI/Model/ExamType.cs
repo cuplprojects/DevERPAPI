@@ -9,6 +9,6 @@ namespace ERPAPI.Model
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int ExamTypeId { get; set; }
         public string TypeName { get; set; }
-        public string Type { get; set; }
+        //public string Type { get; set; }
     }
 }

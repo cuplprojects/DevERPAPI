@@ -241,7 +241,7 @@ namespace ERPAPI.Controllers
                         {
                             qp.QPMasterId,
                             GroupName = grp != null ? grp.Name : null,
-                            Type = et != null ? et.Type : null,
+                            Type = et != null ? et.TypeName : null,
                             qp.NEPCode,
                             qp.UniqueCode,
                             SubjectName = sub != null ? sub.SubjectName : null,
@@ -261,7 +261,7 @@ namespace ERPAPI.Controllers
                                          _context.Groups.Any(g => g.Id == groupId && g.Name == q.GroupName));
 
             if (typeId.HasValue)
-                query = query.Where(q => _context.ExamTypes.Any(t => t.ExamTypeId == typeId && t.Type == q.Type));
+                query = query.Where(q => _context.ExamTypes.Any(t => t.ExamTypeId == typeId && t.TypeName == q.Type));
 
             if (courseId.HasValue)
                 query = query.Where(q => _context.Courses.Any(c => c.CourseId == courseId && c.CourseName == q.CourseName));
