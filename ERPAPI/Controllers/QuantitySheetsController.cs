@@ -11,6 +11,8 @@ using Microsoft.CodeAnalysis;
 using Microsoft.AspNetCore.Authorization;
 using ERPAPI.Services;
 using Microsoft.CodeAnalysis.Host;
+using System.Reflection.Emit;
+using System.Text.RegularExpressions;
 
 
 [ApiController]
@@ -27,7 +29,7 @@ public class QuantitySheetController : ControllerBase
         _processService = processService;
         _loggerService = loggerService;
     }
-  
+
     [Authorize]
 
     [HttpPost]
@@ -54,7 +56,7 @@ public class QuantitySheetController : ControllerBase
             .Where(p => p.ProjectId == projectId)
             .Select(p => new { p.TypeId, p.NoOfSeries })
             .FirstOrDefaultAsync();
-
+      
         if (project == null)
         {
             Console.WriteLine($"Project with ProjectId {projectId} not found.");
@@ -86,6 +88,7 @@ public class QuantitySheetController : ControllerBase
 
             foreach (var sheet in newSheets)
             {
+               
                 var adjustedQuantity = sheet.Quantity / noOfSeries;
                 Console.WriteLine($"Adjusted Quantity for CatchNo {sheet.CatchNo}: {adjustedQuantity}");
 
@@ -134,6 +137,7 @@ public class QuantitySheetController : ControllerBase
                 Console.WriteLine($"LotNo is missing for CatchNo {sheet.CatchNo}.");
                 return BadRequest($"The LotNo field is required for sheet with CatchNo: {sheet.CatchNo}.");
             }
+      
         }
 
         var existingSheets = await _context.QuantitySheets
@@ -220,6 +224,7 @@ public class QuantitySheetController : ControllerBase
 
         // Retrieve the existing QuantitySheet from the database
         var existingSheet = await _context.QuantitySheets.FirstOrDefaultAsync(sheet => sheet.QuantitySheetId == id);
+        Console.WriteLine($"Updating QuantitySheet with ID {id}");
 
         if (existingSheet == null)
         {
@@ -239,7 +244,8 @@ public class QuantitySheetController : ControllerBase
         existingSheet.LotNo = updatedSheet.LotNo;
         existingSheet.MaxMarks = updatedSheet.MaxMarks;
         existingSheet.Duration = updatedSheet.Duration;
-        existingSheet.LanguageId = updatedSheet.LanguageId;
+        existingSheet.LanguageId.Clear();
+        existingSheet.LanguageId.AddRange(updatedSheet.LanguageId);
         existingSheet.NEPCode = updatedSheet.NEPCode;
         existingSheet.UniqueCode = updatedSheet.UniqueCode;
         existingSheet.ExamTypeId = updatedSheet.ExamTypeId;
@@ -247,9 +253,9 @@ public class QuantitySheetController : ControllerBase
         existingSheet.MSSStatus = updatedSheet.MSSStatus;
         existingSheet.TTFStatus = updatedSheet.TTFStatus;
         existingSheet.Status = updatedSheet.Status;
-        existingSheet.ProcessId = updatedSheet.ProcessId;
         existingSheet.StopCatch = updatedSheet.StopCatch;
         existingSheet.PercentageCatch = updatedSheet.PercentageCatch;
+        
 
 
         // Save the changes to the database
@@ -278,6 +284,84 @@ public class QuantitySheetController : ControllerBase
                 "QuantitySheet"
             );
             return StatusCode(500, "An error occurred while updating the record.");
+        }
+    }
+
+
+    [HttpPut("bulk-update")]
+    public async Task<IActionResult> BulkUpdate([FromBody] List<QuantitySheet> updatedSheets)
+    {
+        if (updatedSheets == null || !updatedSheets.Any())
+        {
+            return BadRequest("No data provided.");
+        }
+
+        var updatedIds = new List<int>();
+
+        foreach (var updatedSheet in updatedSheets)
+        {
+            // Retrieve the existing QuantitySheet from the database
+            var existingSheet = await _context.QuantitySheets.FirstOrDefaultAsync(sheet => sheet.QuantitySheetId == updatedSheet.QuantitySheetId);
+
+            if (existingSheet == null)
+            {
+                return NotFound($"QuantitySheet with ID {updatedSheet.QuantitySheetId} not found.");
+            }
+
+            // Update the fields with the new values
+            existingSheet.PaperTitle = updatedSheet.PaperTitle;
+            existingSheet.PaperNumber = updatedSheet.PaperNumber;
+            existingSheet.CourseId = updatedSheet.CourseId;
+            existingSheet.SubjectId = updatedSheet.SubjectId;
+            existingSheet.ExamDate = updatedSheet.ExamDate;
+            existingSheet.ExamTime = updatedSheet.ExamTime;
+            existingSheet.InnerEnvelope = updatedSheet.InnerEnvelope;
+            existingSheet.OuterEnvelope = updatedSheet.OuterEnvelope;
+            existingSheet.Quantity = updatedSheet.Quantity;
+            existingSheet.LotNo = updatedSheet.LotNo;
+            existingSheet.MaxMarks = updatedSheet.MaxMarks;
+            existingSheet.Duration = updatedSheet.Duration;
+            existingSheet.LanguageId.Clear();
+            existingSheet.LanguageId.AddRange(updatedSheet.LanguageId);
+            existingSheet.NEPCode = updatedSheet.NEPCode;
+            existingSheet.UniqueCode = updatedSheet.UniqueCode;
+            existingSheet.ExamTypeId = updatedSheet.ExamTypeId;
+            existingSheet.QPId = updatedSheet.QPId;
+            existingSheet.MSSStatus = updatedSheet.MSSStatus;
+            existingSheet.TTFStatus = updatedSheet.TTFStatus;
+            existingSheet.Status = updatedSheet.Status;
+            existingSheet.ProcessId = updatedSheet.ProcessId;
+            existingSheet.StopCatch = updatedSheet.StopCatch;
+            existingSheet.PercentageCatch = updatedSheet.PercentageCatch;
+
+            updatedIds.Add(existingSheet.QuantitySheetId);
+        }
+
+        // Save the changes to the database
+        try
+        {
+            await _context.SaveChangesAsync();
+
+            // Log the update operation
+            _loggerService.LogEvent(
+                "QuantitySheets updated",
+                "QuantitySheet",
+                1, // Replace with actual user ID or triggered by value
+                null,
+                $"QuantitySheetIds: {string.Join(", ", updatedIds)}"
+            );
+
+            return Ok(updatedSheets);
+        }
+        catch (Exception ex)
+        {
+            // Log the error and return an appropriate error response
+            _loggerService.LogError(
+                "Error updating QuantitySheets",
+                ex.Message,
+                "QuantitySheet"
+            );
+            return StatusCode(500, "An error occurred while updating the records.");
         }
     }
 
@@ -901,6 +985,57 @@ public class QuantitySheetController : ControllerBase
         return Ok(processedNewSheets);
     }
 
+    [HttpPost("UpdateLotNo")]
+    public async Task<IActionResult> UpdateLotNo(string StartDate, string EndDate, string newLotNo, int projectId)
+    {
+        if (string.IsNullOrEmpty(newLotNo) || string.IsNullOrEmpty(StartDate) || string.IsNullOrEmpty(EndDate))
+        {
+            return BadRequest("New LotNo is required.");
+        }
+
+        if (!DateTime.TryParse(StartDate, out var start) || !DateTime.TryParse(EndDate, out var end))
+        {
+            return BadRequest("Invalid date format.");
+        }
+
+        // Pull to memory before parsing
+        var quantitySheet = _context.QuantitySheets
+      .Where(p => p.ProjectId == projectId)
+      .AsEnumerable() // now IEnumerable, not IQueryable
+      .Where(p => DateTime.TryParse(p.ExamDate, out var examDate) && examDate >= start && examDate <= end)
+      .ToList(); // ✅ use ToList(), not ToListAsync()
+
+
+        if (!quantitySheet.Any())
+        {
+            return NotFound("No matching QuantitySheets found.");
+        }
+
+        foreach (var sheet in quantitySheet)
+        {
+            sheet.LotNo = newLotNo;
+        }
+
+        var quantitySheetIds = quantitySheet.Select(q => q.QuantitySheetId).ToList();
+
+        var relatedTransactions = await _context.Transaction
+            .Where(t => quantitySheetIds.Contains(t.QuantitysheetId))
+            .ToListAsync();
+
+        if (!int.TryParse(newLotNo, out int newLotNoInt))
+        {
+            return BadRequest("Invalid LotNo. Must be an integer.");
+        }
+
+        foreach (var transaction in relatedTransactions)
+        {
+            transaction.LotNo = newLotNoInt;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
 
 
     [Authorize]

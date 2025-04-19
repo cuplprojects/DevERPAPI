@@ -138,16 +138,27 @@ namespace ERPAPI.Controllers
                 return BadRequest("No QuantitySheet data provided.");
             }
 
+         
+
+
             foreach (var qpmaster in qpmasterList)
             {
                 var groupId = qpmaster.GroupId;
+                var nepcode = qpmaster.NEPCode;
+                var uniqueCode = qpmaster.UniqueCode;
                 var group = await _context.Groups
                     .Where(p => p.Id == groupId)
                     .FirstOrDefaultAsync();
-
                 if (group == null)
                 {
                     return BadRequest($"Group with ID {groupId} not found.");
+                }
+                bool exists = await _context.QpMasters
+            .AnyAsync(q => q.GroupId == groupId && q.NEPCode == nepcode && q.UniqueCode == uniqueCode);
+
+                if (exists)
+                {
+                    return BadRequest($"NEPCode '{nepcode}' already exists for Group ID {groupId}.");
                 }
 
                 // Add the QpMaster object to the context
