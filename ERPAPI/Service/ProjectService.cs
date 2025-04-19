@@ -21,7 +21,7 @@ namespace ProjectService.Services
                 return new List<Project>();
 
             var ongoingProjects = await _context.QuantitySheets
-                .Where(q => q.Status == 1)
+                .Where(q => q.Status == 0)
                 .GroupBy(p => p.ProjectId)
                 .Select(group => group.Key)
                 .ToListAsync();

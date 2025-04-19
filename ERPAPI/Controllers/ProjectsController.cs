@@ -82,7 +82,7 @@ namespace ERPAPI.Controllers
 
 
         [HttpPost]
-        public async Task<ActionResult<Project>> PostProject([FromBody] Project project)
+        public async Task<ActionResult<Project>> PostProject([FromBody]Project project)
         {
             // Check for duplicate project name
             var existingProject = await _context.Projects

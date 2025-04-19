@@ -32,7 +32,6 @@ builder.Services.AddScoped<ABCD>();
 builder.Services.AddScoped<Project>();
 builder.Services.AddControllers();
 builder.Services.AddScoped<ProcessService>();
-
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policyBuilder =>
