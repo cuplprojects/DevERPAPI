@@ -1216,9 +1216,36 @@ namespace ERPAPI.Controllers
                     var filteredQuantitySheets = quantitySheets
                         .Where(qs => qs.LotNo.ToString() == lotNumberStr && qs.ProcessId.Contains(processId) && qs.ProjectId == projectId);
 
+                    int completedQuantitySheets = 0; // Initialize completedQuantitySheets
+                    if (processId == 24)
+                    {
+                        var relevantQuantitySheets = quantitySheets.Where(qs =>
+                            qs.LotNo.ToString() == lotNumberStr &&
+                            qs.ProcessId.Contains(processId) &&
+                            qs.MSSStatus == 3);
 
-                    var completedQuantitySheets = filteredTransactions.Count(); //2
-                    Console.WriteLine(processId + "completed " + completedQuantitySheets);
+                        // Now filter transactions based on these quantity sheets
+                        completedQuantitySheets = relevantQuantitySheets.Count();
+                        Console.WriteLine(processId + "completed " + completedQuantitySheets);
+                    }
+
+                    if (processId == 23)
+                    {
+                        var relevantQuantitySheets = quantitySheets.Where(qs =>
+                            qs.LotNo.ToString() == lotNumberStr &&
+                            qs.ProcessId.Contains(processId) &&
+                            qs.MSSStatus >= 2);
+
+                        completedQuantitySheets = relevantQuantitySheets.Count();
+                        Console.WriteLine(processId + "completed " + completedQuantitySheets);
+                    }
+                    if(processId != 24 && processId != 23)
+                    {
+                        completedQuantitySheets = filteredTransactions.Count(); //2
+                        Console.WriteLine(processId + "completed " + completedQuantitySheets);
+                    }
+
+                    
 
                     var totalQuantitySheets = filteredQuantitySheets.Count(); //57
 

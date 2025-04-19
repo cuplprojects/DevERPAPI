@@ -126,6 +126,8 @@ namespace ERPAPI.Service
                 return format switch
                 {
                     "2022-23" => $"{fullStart}-{shortEnd}",
+                    "2022" => $"{fullStart}",
+                    "2023" => $"{fullEnd}",
                     "22-23" => $"{shortStart}-{shortEnd}",
                     "22-2023" => $"{shortStart}-{fullEnd}",
                     _ => $"{fullStart}-{fullEnd}",
