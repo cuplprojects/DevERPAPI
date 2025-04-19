@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.Text;
 using ERPAPI.Data;
 using ERPAPI.Service.ProjectTransaction;
+using ERPAPI.Model;
 
 
 
@@ -27,7 +28,8 @@ builder.Services.AddScoped<ProjectService.Services.ProjectService>();
 builder.Services.AddScoped<IProjectTransactionService, ProjectTransactionService>();
 
 
-
+builder.Services.AddScoped<ABCD>();
+builder.Services.AddScoped<Project>();
 builder.Services.AddControllers();
 builder.Services.AddScoped<ProcessService>();
 builder.Services.AddCors(options =>

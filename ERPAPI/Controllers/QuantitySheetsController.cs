@@ -471,7 +471,7 @@ public class QuantitySheetController : ControllerBase
         // Update the status to 1 (released for production)
         foreach (var sheet in quantitySheets)
         {
-            sheet.Status = 1;
+            sheet.Status = 0;
         }
 
 
@@ -1063,7 +1063,7 @@ public class QuantitySheetController : ControllerBase
     public async Task<ActionResult<IEnumerable<string>>> GetUnReleasedLots(int ProjectId)
     {
         var uniqueLotNumbers = await _context.QuantitySheets
-            .Where(r => r.ProjectId == ProjectId && r.Status != 1)
+            .Where(r => r.ProjectId == ProjectId && r.Status != 0)
             .Select(r => r.LotNo) // Select the LotNo
             .Distinct() // Get unique LotNo values
             .ToListAsync();
@@ -1076,7 +1076,7 @@ public class QuantitySheetController : ControllerBase
     public async Task<ActionResult<IEnumerable<string>>> GetReleasedLots(int ProjectId)
     {
         var uniqueLotNumbers = await _context.QuantitySheets
-            .Where(r => r.ProjectId == ProjectId && r.Status == 1)
+            .Where(r => r.ProjectId == ProjectId && r.Status == 0)
             .Select(r => r.LotNo) // Select the LotNo
             .Distinct() // Get unique LotNo values
             .ToListAsync();
@@ -1109,7 +1109,7 @@ public class QuantitySheetController : ControllerBase
     {
         // Retrieve current lot data with necessary fields only
         var currentLotData = await _context.QuantitySheets
-            .Where(r => r.ProjectId == ProjectId && r.LotNo == lotNo && r.StopCatch == 0)
+            .Where(r => r.ProjectId == ProjectId && r.LotNo == lotNo && r.MSSStatus != 0)
             .Select(r => new
             {
                 r.QuantitySheetId,
@@ -1322,7 +1322,7 @@ public class QuantitySheetController : ControllerBase
     {
         // Step 1: Fetch QuantitySheets
         var quantitySheets = await _context.QuantitySheets
-            .Where(r => r.ProjectId == ProjectId && r.StopCatch == 0)
+            .Where(r => r.ProjectId == ProjectId && r.MSSStatus!=0)
             .ToListAsync();
 
         // Step 2: Fetch LanguageIds from the QuantitySheets

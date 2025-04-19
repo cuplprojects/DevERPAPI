@@ -241,7 +241,7 @@ namespace ERPAPI.Controllers
                         {
                             qp.QPMasterId,
                             GroupName = grp != null ? grp.Name : null,
-                            Type = et != null ? et.Type : null,
+                            Type = et != null ? et.TypeName : null,
                             qp.NEPCode,
                             qp.UniqueCode,
                             SubjectName = sub != null ? sub.SubjectName : null,
@@ -261,7 +261,7 @@ namespace ERPAPI.Controllers
                     _context.Groups.Any(g => g.Id == groupId && g.Name == q.GroupName));
 
             if (typeId.HasValue)
-                query = query.Where(q => _context.ExamTypes.Any(t => t.ExamTypeId == typeId && t.Type == q.Type));
+                query = query.Where(q => _context.ExamTypes.Any(t => t.ExamTypeId == typeId && t.TypeName == q.Type));
 
             if (courseId.HasValue)
                 query = query.Where(q => _context.Courses.Any(c => c.CourseId == courseId && c.CourseName == q.CourseName));
@@ -283,15 +283,22 @@ namespace ERPAPI.Controllers
 
       [FromQuery] string search,
       [FromQuery] int? groupId, // Add groupId as a nullable int
-      [FromQuery] int? examTypeId, // Add examTypeId as a nullable int
+      [FromQuery] string? examTypeId, // Add examTypeId as a nullable int
       [FromQuery] int page = 1,
       [FromQuery] int pageSize = 5)
+
 
         {
             if (string.IsNullOrWhiteSpace(search))
             {
                 return BadRequest("Search query cannot be null or empty.");
             }
+            var parsedExamTypeIds = !string.IsNullOrWhiteSpace(examTypeId)
+    ? examTypeId.Split(',').Select(id => int.TryParse(id, out var parsed) ? parsed : (int?)null)
+        .Where(id => id.HasValue)
+        .Select(id => id.Value)
+        .ToList()
+    : new List<int>();
 
             // Get the list of QPIds from QuantitySheet table
             var existingQPIds = await _context.QuantitySheets
@@ -311,6 +318,8 @@ namespace ERPAPI.Controllers
             qp.UniqueCode.Contains(search) ||
             qp.PaperNumber.Contains(search) ||
             crs.CourseName.Contains(search) ||
+(!parsedExamTypeIds.Any() || (qp.ExamTypeId.HasValue && parsedExamTypeIds.Contains(qp.ExamTypeId.Value)))
+&&
             qp.PaperTitle.Contains(search)) &&
         (!groupId.HasValue || qp.GroupId == groupId) &&
           !existingQPIds.Contains(qp.QPMasterId)
