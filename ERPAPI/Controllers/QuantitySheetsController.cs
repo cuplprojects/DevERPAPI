@@ -333,6 +333,7 @@ public class QuantitySheetController : ControllerBase
             existingSheet.ProcessId = updatedSheet.ProcessId;
             existingSheet.StopCatch = updatedSheet.StopCatch;
             existingSheet.PercentageCatch = updatedSheet.PercentageCatch;
+            existingSheet.StructureOfPaper = updatedSheet.StructureOfPaper;
 
             updatedIds.Add(existingSheet.QuantitySheetId);
         }
@@ -1379,6 +1380,7 @@ public class QuantitySheetController : ControllerBase
             q.QPId,
             q.NEPCode,
             q.UniqueCode,
+            q.StructureOfPaper,
         }).ToList();
 
         return result;
