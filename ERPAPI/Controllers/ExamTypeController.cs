@@ -44,6 +44,7 @@ namespace ERPAPI.Controllers
 
             existingExamType.TypeName = updatedExamType.TypeName;
 
+
             await _context.SaveChangesAsync();
             return Ok(existingExamType);
         }
