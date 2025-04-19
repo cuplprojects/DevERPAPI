@@ -69,10 +69,10 @@ namespace ERPAPI.Controllers
         {
             var columnNames = typeof(QpMaster).GetProperties()
                 .Where(prop => prop.Name != "QPMasterId" &&
-                               prop.Name != "GroupId" &&
-                               prop.Name != "CustomizedField1" &&
-                               prop.Name != "CustomizedField2" &&
-                               prop.Name != "CustomizedField3")
+                    prop.Name != "GroupId" &&
+                    prop.Name != "CustomizedField1" &&
+                    prop.Name != "CustomizedField2" &&
+                    prop.Name != "CustomizedField3")
                 .Select(prop => prop.Name)
                 .ToList();
 
@@ -219,10 +219,10 @@ namespace ERPAPI.Controllers
 
         [HttpGet("Filter")]
         public async Task<IActionResult> GetQpMasters(
-     [FromQuery] int? groupId = null,
-     [FromQuery] int? typeId = null,
-     [FromQuery] int? courseId = null,
-     [FromQuery] List<int> examTypeId = null) // Accepting array input
+            [FromQuery] int? groupId = null,
+            [FromQuery] int? typeId = null,
+            [FromQuery] int? courseId = null,
+            [FromQuery] List<int> examTypeId = null) // Accepting array input
         {
             var query = from qp in _context.QpMasters
                         join grp in _context.Groups on qp.GroupId equals grp.Id into grpJoin
@@ -258,7 +258,7 @@ namespace ERPAPI.Controllers
 
             if (groupId.HasValue)
                 query = query.Where(q => q.GroupName != null &&
-                                         _context.Groups.Any(g => g.Id == groupId && g.Name == q.GroupName));
+                    _context.Groups.Any(g => g.Id == groupId && g.Name == q.GroupName));
 
             if (typeId.HasValue)
                 query = query.Where(q => _context.ExamTypes.Any(t => t.ExamTypeId == typeId && t.TypeName == q.Type));

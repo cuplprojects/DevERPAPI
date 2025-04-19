@@ -43,7 +43,11 @@ namespace ERPAPI.Controllers
                 return NotFound();
 
             existingExamType.TypeName = updatedExamType.TypeName;
+<<<<<<< HEAD
             
+=======
+
+>>>>>>> Ranjeet
 
             await _context.SaveChangesAsync();
             return Ok(existingExamType);
