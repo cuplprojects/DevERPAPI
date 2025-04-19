@@ -13,6 +13,7 @@ using ERPAPI.Service.ProjectTransaction;
 using ERPAPI.Service;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using NuGet.Protocol.Plugins;
 
 
 namespace ERPAPI.Controllers
@@ -1101,7 +1102,7 @@ namespace ERPAPI.Controllers
         }
 
 
-        //[Authorize]
+        [Authorize]
         [HttpGet("combined-percentages")]
 
         public async Task<ActionResult> GetCombinedPercentages(int projectId)
@@ -1111,7 +1112,7 @@ namespace ERPAPI.Controllers
                 .ToListAsync();
 
             var quantitySheets = await _context.QuantitySheets
-                .Where(p => p.ProjectId == projectId && p.StopCatch == 0)
+                .Where(p => p.ProjectId == projectId && p.MSSStatus==3)
                 .ToListAsync();
 
             var transactions = await _context.Transaction
@@ -1256,7 +1257,7 @@ namespace ERPAPI.Controllers
                         : 0;
 
                     lotProcessWeightageSum[lotNumber][processId] = processPercentage;
-
+                  
                     // Check Dispatch table for ProcessId 14 and Status 1
                     if (processId == 14)
                     {
@@ -1331,7 +1332,7 @@ namespace ERPAPI.Controllers
             public double TotalCatchQuantity { get; set; }
         }
 
-        //[Authorize]
+        [Authorize]
         [HttpGet("process-percentages")]
         public async Task<ActionResult> GetProcessPercentages(int projectId)
         {

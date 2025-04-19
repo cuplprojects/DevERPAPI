@@ -10,9 +10,13 @@ namespace ERPAPI.Model
         public int ExamTypeId { get; set; }
         public string TypeName { get; set; }
 <<<<<<< HEAD
+<<<<<<< HEAD
         //public string Type { get; set; }
 =======
      
 >>>>>>> Ranjeet
+=======
+        //public string Type { get; set; }
+>>>>>>> Sarvagya
     }
 }

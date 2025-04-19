@@ -44,10 +44,14 @@ namespace ERPAPI.Controllers
 
             existingExamType.TypeName = updatedExamType.TypeName;
 <<<<<<< HEAD
+<<<<<<< HEAD
             
 =======
 
 >>>>>>> Ranjeet
+=======
+            existingExamType.TypeName = updatedExamType.TypeName;
+>>>>>>> Sarvagya
 
             await _context.SaveChangesAsync();
             return Ok(existingExamType);
