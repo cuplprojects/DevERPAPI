@@ -1381,6 +1381,8 @@ public class QuantitySheetController : ControllerBase
             q.NEPCode,
             q.UniqueCode,
             q.StructureOfPaper,
+            q.Status,
+
         }).ToList();
 
         return result;
