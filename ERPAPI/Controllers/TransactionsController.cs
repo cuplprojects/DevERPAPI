@@ -13,6 +13,7 @@ using ERPAPI.Service.ProjectTransaction;
 using ERPAPI.Service;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using NuGet.Protocol.Plugins;
 
 
 namespace ERPAPI.Controllers
@@ -1111,7 +1112,7 @@ namespace ERPAPI.Controllers
                 .ToListAsync();
 
             var quantitySheets = await _context.QuantitySheets
-                .Where(p => p.ProjectId == projectId && p.StopCatch == 0)
+                .Where(p => p.ProjectId == projectId && p.MSSStatus==3)
                 .ToListAsync();
 
             var transactions = await _context.Transaction
@@ -1216,8 +1217,31 @@ namespace ERPAPI.Controllers
                     var filteredQuantitySheets = quantitySheets
                         .Where(qs => qs.LotNo.ToString() == lotNumberStr && qs.ProcessId.Contains(processId) && qs.ProjectId == projectId);
 
+                    int completedQuantitySheets = 0; // Initialize completedQuantitySheets
+                    if (processId == 24)
+                    {
+                        var relevantQuantitySheets = quantitySheets.Where(qs =>
+                            qs.LotNo.ToString() == lotNumberStr &&
+                            qs.ProcessId.Contains(processId) &&
+                            qs.MSSStatus == 3);
 
-                    var completedQuantitySheets = filteredTransactions.Count(); //2
+                        // Now filter transactions based on these quantity sheets
+                        completedQuantitySheets = relevantQuantitySheets.Count();
+                    }
+
+                    if (processId == 23)
+                    {
+                        var relevantQuantitySheets = quantitySheets.Where(qs =>
+                            qs.LotNo.ToString() == lotNumberStr &&
+                            qs.ProcessId.Contains(processId) &&
+                            qs.MSSStatus >=2);
+
+                         completedQuantitySheets = relevantQuantitySheets.Count();
+                        
+                    }
+
+
+                     completedQuantitySheets = filteredTransactions.Count(); //2
                     Console.WriteLine(processId + "completed " + completedQuantitySheets);
 
                     var totalQuantitySheets = filteredQuantitySheets.Count(); //57
@@ -1229,7 +1253,7 @@ namespace ERPAPI.Controllers
                         : 0;
 
                     lotProcessWeightageSum[lotNumber][processId] = processPercentage;
-
+                  
                     // Check Dispatch table for ProcessId 14 and Status 1
                     if (processId == 14)
                     {
