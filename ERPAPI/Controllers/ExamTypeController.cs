@@ -43,7 +43,7 @@ namespace ERPAPI.Controllers
                 return NotFound();
 
             existingExamType.TypeName = updatedExamType.TypeName;
-            existingExamType.Type = updatedExamType.Type;
+            existingExamType.TypeName = updatedExamType.TypeName;
 
             await _context.SaveChangesAsync();
             return Ok(existingExamType);
