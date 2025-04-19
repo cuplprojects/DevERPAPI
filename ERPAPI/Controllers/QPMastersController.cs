@@ -236,12 +236,13 @@ namespace ERPAPI.Controllers
 
                         join sub in _context.Subjects on qp.SubjectId equals sub.SubjectId into subJoin
                         from sub in subJoin.DefaultIfEmpty()
-
+                        join type in _context.Types on qp.TypeId equals type.TypeId into typeJoin
+                        from type in typeJoin.DefaultIfEmpty()
                         select new
                         {
                             qp.QPMasterId,
                             GroupName = grp != null ? grp.Name : null,
-                            Type = et != null ? et.TypeName : null,
+
                             qp.NEPCode,
                             qp.UniqueCode,
                             SubjectName = sub != null ? sub.SubjectName : null,
@@ -253,7 +254,8 @@ namespace ERPAPI.Controllers
                             qp.CustomizedField2,
                             qp.CustomizedField3,
                             CourseName = crs != null ? crs.CourseName : null,
-                            ExamTypeName = et != null ? et.TypeName : null
+                            ExamTypeName = et != null ? et.TypeName : null,
+                            TypeName = typeId.HasValue ? type.Types : null,
                         };
 
             if (groupId.HasValue)
@@ -261,7 +263,9 @@ namespace ERPAPI.Controllers
                     _context.Groups.Any(g => g.Id == groupId && g.Name == q.GroupName));
 
             if (typeId.HasValue)
-                query = query.Where(q => _context.ExamTypes.Any(t => t.ExamTypeId == typeId && t.TypeName == q.Type));
+
+                query = query.Where(q => _context.Types.Any(t => t.TypeId == typeId && t.Types == q.TypeName));
+
 
             if (courseId.HasValue)
                 query = query.Where(q => _context.Courses.Any(c => c.CourseId == courseId && c.CourseName == q.CourseName));
