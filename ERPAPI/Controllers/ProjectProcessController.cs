@@ -116,7 +116,8 @@ namespace ERPAPI.Controllers
                 .ToListAsync();
 
             // Adjust the filtering logic based on userId
-            var filteredProcesses = userId < 5
+            var user = await _context.Users.FindAsync(userId);
+            var filteredProcesses = user.RoleId < 5
                 ? processes
                 : processes.Where(pp => pp.UserId == null || pp.UserId.Contains(userId));
 
