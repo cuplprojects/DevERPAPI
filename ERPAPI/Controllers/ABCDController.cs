@@ -42,7 +42,7 @@ namespace ERPAPI.Controllers
 
         // ✅ POST: api/ABCD → Create a new record
         [HttpPost]
-        public async Task<ActionResult<ABCD>> CreateABCD(ABCD abcd)
+        public async Task<ActionResult<ABCD>> CreateABCD([FromBody] ABCD abcd)
         {
             _context.ABCD.Add(abcd);
             await _context.SaveChangesAsync();
