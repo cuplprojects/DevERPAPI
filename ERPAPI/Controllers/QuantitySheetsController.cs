@@ -1319,7 +1319,7 @@ public class QuantitySheetController : ControllerBase
 
    // [Authorize]
     [HttpGet("CatchByproject")]
-    public async Task<ActionResult<IEnumerable<object>>> CatchByproject(int ProjectId)
+    public async Task<ActionResult<IEnumerable<object>>> CatchByproject(int ProjectId, int pageSize, int currentpage)
     {
         // Step 1: Fetch QuantitySheets
         var quantitySheets = await _context.QuantitySheets
@@ -1337,9 +1337,12 @@ public class QuantitySheetController : ControllerBase
             .Where(l => languageIds.Contains(l.LanguageId))
             .Select(l => new { l.LanguageId, l.Languages }) // Adjust the property names as needed
             .ToListAsync();
-
+        var pagedQuantitySheets = quantitySheets
+       .Skip((currentpage - 1) * pageSize)
+       .Take(pageSize)
+       .ToList();
         // Step 4: Map the languages back to the QuantitySheets
-        var result = quantitySheets.Select(q => new
+        var result = pagedQuantitySheets.Select(q => new
         {
             q.QuantitySheetId,
             q.CatchNo,
@@ -1385,7 +1388,11 @@ public class QuantitySheetController : ControllerBase
 
         }).ToList();
 
-        return result;
+        return Ok(new
+        {
+           data= result,
+            totalrecords = quantitySheets.Count
+        });
     }
 
     [Authorize]
