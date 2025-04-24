@@ -182,7 +182,7 @@ namespace ERPAPI.Controllers
         }
 
         [HttpGet("ByProject")]
-        public async Task<IActionResult> GetQCByProject(int projectId)
+        public async Task<IActionResult> GetQCByProject(int projectId, int pagesize, int currentpage)
         {
             // Fetch QuantitySheets for the given projectId
             var quantitySheets = await _context.QuantitySheets
@@ -213,6 +213,7 @@ namespace ERPAPI.Controllers
                 return NotFound($"Project with ID {projectId} not found.");
             }
 
+
             // Perform a left join with the QC table based on QuantitySheetId
             var result = quantitySheets
      .GroupJoin(_context.QC,
@@ -226,6 +227,7 @@ namespace ERPAPI.Controllers
                     Duration = qs.Duration,
                     LanguageId = qs.LanguageId,
                     StructureOfPaper = qs.StructureOfPaper,
+                    MSSStatus = qs.MSSStatus,
                     Language = languages.Where(l => qs.LanguageId.Contains(l.LanguageId)).Select(l => l.Languages).ToList(),
                     A = abcd != null ? ResolveTemplate(abcd.A, qs, project, subjects, courses, sessions, abcd.SessionFormat) : null,
                     B = abcd != null ? GetPropertyValue(qs, abcd.B, subjects, courses, sessions) : null,
@@ -257,6 +259,7 @@ namespace ERPAPI.Controllers
          x.Duration,
          x.MaxMarks,
          x.Series,
+         x.MSSStatus,
          x.StructureOfPaper,
          x.Language,
          x.A,
