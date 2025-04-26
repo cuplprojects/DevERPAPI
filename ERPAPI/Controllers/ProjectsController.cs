@@ -82,7 +82,7 @@ namespace ERPAPI.Controllers
 
 
         [HttpPost]
-        public async Task<ActionResult<Project>> PostProject([FromBody]Project project)
+        public async Task<ActionResult<Project>> PostProject([FromBody] Project project)
         {
             // Check for duplicate project name
             var existingProject = await _context.Projects
@@ -105,6 +105,9 @@ namespace ERPAPI.Controllers
 
             // Set the Date to the current date
             project.Date = DateTime.Now;
+
+            // Log the requiredField to ensure it is received
+            Console.WriteLine("RequiredField: " + string.Join(", ", project.RequiredField));
 
             _context.Projects.Add(project);
             await _context.SaveChangesAsync();
