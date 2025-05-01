@@ -854,6 +854,10 @@ namespace ERPAPI.Controllers
 
                 foreach (var quantitySheet in quantitySheets)
                 {
+                    if (quantitySheet == null || quantitySheet.LotNo == null)
+                    {
+                        continue; // Skip invalid quantity sheets
+                    }
                     var lotNumber = quantitySheet.LotNo.ToString();
                     var processIdWeightage = new Dictionary<int, double>();
                     double totalWeightageSum = 0;
