@@ -182,7 +182,7 @@ namespace ERPAPI.Controllers
         }
 
         [HttpGet("ByProject")]
-        public async Task<IActionResult> GetQCByProject(int projectId)
+        public async Task<IActionResult> GetQCByProject(int projectId, int pagesize, int currentpage)
         {
             // Fetch QuantitySheets for the given projectId
             var quantitySheets = await _context.QuantitySheets
@@ -212,6 +212,7 @@ namespace ERPAPI.Controllers
             {
                 return NotFound($"Project with ID {projectId} not found.");
             }
+
 
             // Perform a left join with the QC table based on QuantitySheetId
             var result = quantitySheets
