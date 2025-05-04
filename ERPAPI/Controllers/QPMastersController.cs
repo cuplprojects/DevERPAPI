@@ -331,6 +331,7 @@ namespace ERPAPI.Controllers
             {
                 qp.QPMasterId,
                 qp.NEPCode,
+                qp.UniqueCode,//added by roy
                 qp.PaperTitle,
                 qp.CourseId,
                 CourseName = crs.CourseName,
@@ -340,7 +341,8 @@ namespace ERPAPI.Controllers
                 qp.ExamTypeId,
                 qp.SubjectId,
                 ExamTypeName = et.TypeName,
-                SubjectName = sn.SubjectName
+                SubjectName = sn.SubjectName,
+                qp.MaxMarks,
             }
 );
 
@@ -355,6 +357,7 @@ namespace ERPAPI.Controllers
             {
                 qp.QPMasterId,
                 qp.NEPCode,
+                qp.UniqueCode,//added by roy
                 qp.PaperTitle,
                 qp.CourseId,
                 qp.CourseName,
@@ -367,7 +370,8 @@ namespace ERPAPI.Controllers
                     : new List<string>(),  // Convert IDs to Names
                 qp.ExamTypeId,
                 qp.ExamTypeName,
-                qp.SubjectName
+                qp.SubjectName,
+                qp.MaxMarks,
             }).ToList();
 
             return Ok(finalResult);
