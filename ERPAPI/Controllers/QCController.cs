@@ -240,7 +240,7 @@ namespace ERPAPI.Controllers
                         Language = qcGroup.FirstOrDefault()?.Language ?? false,  // Use actual value or false if null
                         MaxMarks = qcGroup.FirstOrDefault()?.MaxMarks ?? false,  // Use actual value or false if null
                         Duration = qcGroup.FirstOrDefault()?.Duration ?? false,  // Use actual value or false if null
-                        Structure = qcGroup.FirstOrDefault()?.StructureOfPaper ?? false,  // Use actual value or false if null
+                        StructureOfPaper = qcGroup.FirstOrDefault()?.StructureOfPaper ?? false,  // Use actual value or false if null
                         Series = qcGroup.FirstOrDefault()?.Series ?? false,  // Use actual value or false if null
                         Status = qcGroup.FirstOrDefault()?.Status ?? false, // Use actual Status or 0 if null
                         A = qcGroup.FirstOrDefault()?.A ?? false,
