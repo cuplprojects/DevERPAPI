@@ -138,51 +138,69 @@ namespace ERPAPI.Controllers
                 return BadRequest("No QuantitySheet data provided.");
             }
 
-         
+            // Normalize and remove internal duplicates
+            var distinctQpList = qpmasterList
+                .GroupBy(x => new { x.GroupId, NepCode = x.NEPCode.Trim().ToLower() })
+                .Select(g => g.First())
+                .ToList();
 
+            var addedQpList = new List<QpMaster>();
 
-            foreach (var qpmaster in qpmasterList)
+            foreach (var qpmaster in distinctQpList)
             {
                 var groupId = qpmaster.GroupId;
-                var nepcode = qpmaster.NEPCode;
-                var uniqueCode = qpmaster.UniqueCode;
+                var nepcode = qpmaster.NEPCode?.Trim();
+                var normalizedNepcode = nepcode?.ToLower();
+
                 var group = await _context.Groups
                     .Where(p => p.Id == groupId)
                     .FirstOrDefaultAsync();
+
                 if (group == null)
                 {
-                    return BadRequest($"Group with ID {groupId} not found.");
+                    return BadRequest(new { message = $"Group with ID {groupId} not found." });
                 }
+
                 bool exists = await _context.QpMasters
-            .AnyAsync(q => q.GroupId == groupId && q.NEPCode == nepcode && q.UniqueCode == uniqueCode);
+                    .AnyAsync(q => q.GroupId == groupId
+                        && q.NEPCode.Trim().ToLower() == normalizedNepcode);
 
-                if (exists)
+                // If only one entry in request and it already exists -> send error
+                if (qpmasterList.Count == 1 && exists)
                 {
-                    return BadRequest($"NEPCode '{nepcode}' already exists for Group ID {groupId}.");
+                    return BadRequest(new { message = $"NEPCode '{nepcode}' already exists for Group ID {groupId}." });
                 }
 
-                // Add the QpMaster object to the context
-                await _context.QpMasters.AddAsync(qpmaster);
+                // If multiple entries, just skip the one that exists
+                if (!exists)
+                {
+                    await _context.QpMasters.AddAsync(qpmaster);
+                    addedQpList.Add(qpmaster);
+                }
             }
 
-            // Save all changes in one batch
+            if (!addedQpList.Any())
+            {
+                return Ok(new { message = "No new entries were added (all were duplicates)." });
+            }
+
             await _context.SaveChangesAsync();
 
-            // Log the event for each item in the list
-            foreach (var qpmaster in qpmasterList)
+            // Log added entries
+            foreach (var qpmaster in addedQpList)
             {
-                var groupId = qpmaster.GroupId;
                 _loggerService.LogEvent(
                     "New QuantitySheet added",
                     "QuantitySheet",
-                    1, // Replace with actual user ID or triggered by value
+                    1,
                     null,
-                    $"GroupId: {groupId}"
+                    $"GroupId: {qpmaster.GroupId}"
                 );
             }
 
-            return Ok();
+            return Ok(new { message = $"{addedQpList.Count} QuantitySheet(s) added successfully." });
         }
+
 
 
 
