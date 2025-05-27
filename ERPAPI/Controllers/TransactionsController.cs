@@ -803,7 +803,7 @@ namespace ERPAPI.Controllers
 
 
         [HttpGet("all-project-completion-percentages")]
-        public async Task<ActionResult> GetAllProjectCompletionPercentages([FromQuery] int userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 5)
+        public async Task<ActionResult> GetAllProjectCompletionPercentages([FromQuery] int userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] int? starredProjectId = null)
         {
             // Step 1: Fetch Projects Assigned to the User
             var userProjects = await _projectService.GetDistinctProjectsForUser(userId);
@@ -813,8 +813,26 @@ namespace ERPAPI.Controllers
                 return NotFound("No projects assigned to this user.");
             }
 
-            // Step 2: Extract Project IDs and Apply Pagination
-            var projectIds = userProjects.Select(p => p.ProjectId).Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            var allProjectIds = userProjects.Select(p => p.ProjectId).ToList();
+            var projectIds = new List<int>();
+
+            // Step 2: Handle Starred Project Priority
+            if (starredProjectId.HasValue && allProjectIds.Contains(starredProjectId.Value))
+            {
+                // Add starred project first (only on first page)
+                if (page == 1)
+                {
+                    projectIds.Add(starredProjectId.Value);
+                    pageSize--; // Reduce page size by 1 to accommodate starred project
+                }
+
+                // Remove starred project from the list to avoid duplicates
+                allProjectIds.Remove(starredProjectId.Value);
+            }
+
+            // Step 3: Apply Pagination to Remaining Projects
+            var remainingProjectIds = allProjectIds.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            projectIds.AddRange(remainingProjectIds);
 
             if (!projectIds.Any())
             {
@@ -1250,7 +1268,7 @@ namespace ERPAPI.Controllers
                         Console.WriteLine(processId + "completed " + completedQuantitySheets);
                     }
 
-                    
+
 
                     var totalQuantitySheets = filteredQuantitySheets.Count(); //57
 
@@ -1261,7 +1279,7 @@ namespace ERPAPI.Controllers
                         : 0;
 
                     lotProcessWeightageSum[lotNumber][processId] = processPercentage;
-                  
+
                     // Check Dispatch table for ProcessId 14 and Status 1
                     if (processId == 14)
                     {
