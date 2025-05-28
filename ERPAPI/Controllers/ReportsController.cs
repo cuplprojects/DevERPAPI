@@ -666,22 +666,278 @@ namespace ERPAPI.Controllers
         }
 
 
+        //[HttpGet("DailyReports")]
+        //public async Task<IActionResult> GetDailyReports(string date = null, string? startDate = null, string? endDate = null, int? userId = null, int? groupId = null, int page = 1, int pageSize = 10)
+        //{
+        //    try
+        //    {
+        //        DateTime? parsedDate = null;
+        //        DateTime? parsedStartDate = null;
+        //        DateTime? parsedEndDate = null;
+
+        //        if (!string.IsNullOrEmpty(date))
+        //        {
+        //            if (!DateTime.TryParseExact(date, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsed))
+        //                return BadRequest("Invalid date format. Please use dd-MM-yyyy.");
+        //            parsedDate = parsed;
+        //        }
+
+        //        if (!string.IsNullOrEmpty(startDate))
+        //        {
+        //            if (!DateTime.TryParseExact(startDate, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedStart))
+        //                return BadRequest("Invalid startDate format. Please use dd-MM-yyyy.");
+        //            parsedStartDate = parsedStart;
+        //        }
+
+        //        if (!string.IsNullOrEmpty(endDate))
+        //        {
+        //            if (!DateTime.TryParseExact(endDate, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedEnd))
+        //                return BadRequest("Invalid endDate format. Please use dd-MM-yyyy.");
+        //            parsedEndDate = parsedEnd;
+        //        }
+
+        //        var baseQuery = _context.EventLogs
+        //            .Where(el => el.Category == "Transaction"
+        //                && el.Event == "Status Updated"
+        //                && el.OldValue == "1"
+        //                && el.NewValue == "2");
+
+        //        if (parsedStartDate.HasValue && parsedEndDate.HasValue)
+        //        {
+        //            baseQuery = baseQuery.Where(el => el.LoggedAT.Date >= parsedStartDate.Value.Date && el.LoggedAT.Date <= parsedEndDate.Value.Date);
+        //        }
+        //        else if (parsedDate.HasValue)
+        //        {
+        //            baseQuery = baseQuery.Where(el => el.LoggedAT.Date == parsedDate.Value.Date);
+        //        }
+        //        else
+        //        {
+        //            return BadRequest("Please provide either a valid date or both startDate and endDate.");
+        //        }
+
+        //        if (userId.HasValue)
+        //        {
+        //            baseQuery = baseQuery.Where(el => el.EventTriggeredBy == userId.Value);
+        //        }
+
+        //        var joinedData = baseQuery
+        //            .Join(_context.Transaction,
+        //                el => el.TransactionId,
+        //                t => t.TransactionId,
+        //                (el, t) => new { el, t })
+        //            .Join(_context.QuantitySheets,
+        //                joined => joined.t.QuantitysheetId,
+        //                qs => qs.QuantitySheetId,
+        //                (joined, qs) => new { joined.el, joined.t, qs })
+        //            .Join(_context.Projects,
+        //                joined => joined.t.ProjectId,
+        //                p => p.ProjectId,
+        //                (joined, p) => new { joined.el, joined.t, joined.qs, p })
+        //            .Join(_context.Groups,
+        //                joined => joined.p.GroupId,
+        //                g => g.Id,
+        //                (joined, g) => new
+        //                {
+        //                    joined.el,
+        //                    joined.t,
+        //                    joined.qs,
+        //                    joined.p,
+        //                    Group = g
+        //                })
+        //            .Where(r => !groupId.HasValue || r.p.GroupId == groupId.Value)
+        //            .Select(r => new
+        //            {
+        //                r.el,
+        //                r.t,
+        //                r.qs,
+        //                r.p,
+        //                GroupName = r.Group.Name
+        //            });
+
+        //        var results = await joinedData.ToListAsync();
+        //        var totalRecords = results.Count;
+
+        //        var teamIds = results
+        //            .Where(r => r.t.TeamId != null)
+        //            .SelectMany(r => r.t.TeamId)
+        //            .Distinct()
+        //            .ToList();
+
+        //        var teamUserMap = await _context.Teams
+        //            .Where(t => teamIds.Contains(t.TeamId))
+        //            .ToDictionaryAsync(t => t.TeamId, t => t.UserIds);
+
+        //        var allUserIds = teamUserMap.Values.SelectMany(u => u).Distinct().ToList();
+
+        //        var userMap = await _context.Users
+        //            .Where(u => allUserIds.Contains(u.UserId))
+        //            .ToDictionaryAsync(u => u.UserId, u => u.UserName);
+
+        //        var eventTriggeredByIds = results.Select(r => r.el.EventTriggeredBy).Distinct().ToList();
+
+        //        var triggeredByMap = await _context.Users
+        //            .Where(u => eventTriggeredByIds.Contains(u.UserId))
+        //            .ToDictionaryAsync(u => u.UserId, u => u.UserName);
+
+        //        var pagedResults = results
+        //            .Skip((page - 1) * pageSize)
+        //            .Take(pageSize)
+        //            .ToList();
+
+        //        var transactionSummaries = pagedResults
+        //            .Select(r =>
+        //            {
+        //                var userIds = r.t.TeamId != null
+        //                    ? r.t.TeamId
+        //                        .Where(tid => teamUserMap.ContainsKey(tid))
+        //                        .SelectMany(tid => teamUserMap[tid])
+        //                        .Distinct()
+        //                        .ToList()
+        //                    : new List<int>();
+
+        //                var userNames = userIds
+        //                    .Where(uid => userMap.ContainsKey(uid))
+        //                    .Select(uid => userMap[uid])
+        //                    .ToList();
+
+        //                var EndTime = _context.EventLogs
+        //                    .Where(el => el.TransactionId == r.t.TransactionId)
+        //                    .OrderByDescending(el => el.LoggedAT)
+        //                    .Select(el => el.LoggedAT)
+        //                    .FirstOrDefault();
+
+        //                var startTime = _context.EventLogs
+        //                    .Where(el => el.TransactionId == r.t.TransactionId)
+        //                    .OrderBy(el => el.LoggedAT)
+        //                    .Select(el => el.LoggedAT)
+        //                    .FirstOrDefault();
+
+        //                string triggeredByUserName = triggeredByMap.ContainsKey(r.el.EventTriggeredBy)
+        //                    ? triggeredByMap[r.el.EventTriggeredBy]
+        //                    : "Unknown";
+
+        //                return new
+        //                {
+        //                    TransactionId = r.t.TransactionId,
+        //                    ProjectName = r.p.Name,
+        //                    QuantitySheetId = r.t.QuantitysheetId,
+        //                    ZoneId = r.t.ZoneId,
+        //                    CatchNo = r.qs.CatchNo,
+        //                    GroupName = r.GroupName,
+        //                    Supervisor = triggeredByUserName,
+        //                    StartTime = startTime,
+        //                    EndTime = EndTime,
+        //                    ProcessId = r.t.ProcessId,
+        //                    Quantity = r.qs.Quantity,
+        //                    MachineId = r.t.MachineId,
+        //                    Lot = r.t.LotNo,
+        //                    StatusCode = r.t.Status,
+        //                    TeamMembersNames = userNames
+        //                };
+        //            })
+        //            .ToList();
+
+        //        var machineIds = results.Select(r => r.t.MachineId).Distinct().ToList();
+        //        var machines = await _context.Machine
+        //            .Where(m => machineIds.Contains(m.MachineId))
+        //            .Select(m => new { m.MachineId, m.MachineName })
+        //            .ToListAsync();
+
+        //        var supervisorIds = results.Select(r => r.el.EventTriggeredBy).Distinct().ToList();
+        //        var supervisors = await _context.Users
+        //            .Where(u => supervisorIds.Contains(u.UserId))
+        //            .Select(u => new { Name = u.FirstName + " " + u.LastName })
+        //            .ToListAsync();
+
+        //        var quantitySheetCount = results.Select(r => r.qs.QuantitySheetId).Distinct().Count();
+        //        var totalQuantity = results.Sum(r => r.qs.Quantity);
+
+        //        var logTimes = results.Select(r => r.el.LoggedAT).ToList();
+        //        var firstLog = logTimes.Min();
+        //        var lastLog = logTimes.Max();
+        //        var timeDiff = lastLog - firstLog;
+        //        string formattedDiff = $"{timeDiff.Days}d:{timeDiff.Hours}h:{timeDiff.Minutes}m:{timeDiff.Seconds}s";
+
+        //        var lotNos = results.Select(r => r.t.LotNo).Distinct().ToList();
+
+        //        var quantityByProcess = results
+        //            .Where(r => r.t.Status == 2)
+        //            .GroupBy(r => r.t.ProcessId)
+        //            .Select(g => new
+        //            {
+        //                ProcessId = g.Key,
+        //                TotalQuantity = g.Sum(x => x.qs.Quantity)
+        //            })
+        //            .ToList();
+
+        //        return Ok(new
+        //        {
+        //            UserTransactionDetails = transactionSummaries,
+        //            TotalRecords = totalRecords,
+        //            CurrentPage = page,
+        //            PageSize = pageSize,
+        //            Supervisors = supervisors,
+        //            TotalCatches = quantitySheetCount,
+        //            TotalQuantity = totalQuantity,
+        //            DistinctLotNos = lotNos,
+        //            CompletedQuantityByProcess = quantityByProcess
+        //        });
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return StatusCode(500, new { message = "An error occurred", error = ex.Message });
+        //    }
+        //}
+
+
         [HttpGet("DailyReports")]
-        public async Task<IActionResult> GetDailyReports(string date, int? userId = null, int? groupId = null, int page = 1, int pageSize = 10)
+        public async Task<IActionResult> GetDailyReports(string date = null, string? startDate = null, string? endDate = null, int? userId = null, int? groupId = null, int page = 1, int pageSize = 10)
         {
             try
             {
-                if (!DateTime.TryParseExact(date, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedDate))
+                DateTime? parsedDate = null;
+                DateTime? parsedStartDate = null;
+                DateTime? parsedEndDate = null;
+
+                if (!string.IsNullOrEmpty(date))
                 {
-                    return BadRequest("Invalid date format. Please use dd-MM-yyyy.");
+                    if (!DateTime.TryParseExact(date, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsed))
+                        return BadRequest("Invalid date format. Please use dd-MM-yyyy.");
+                    parsedDate = parsed;
+                }
+
+                if (!string.IsNullOrEmpty(startDate))
+                {
+                    if (!DateTime.TryParseExact(startDate, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedStart))
+                        return BadRequest("Invalid startDate format. Please use dd-MM-yyyy.");
+                    parsedStartDate = parsedStart;
+                }
+
+                if (!string.IsNullOrEmpty(endDate))
+                {
+                    if (!DateTime.TryParseExact(endDate, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedEnd))
+                        return BadRequest("Invalid endDate format. Please use dd-MM-yyyy.");
+                    parsedEndDate = parsedEnd;
                 }
 
                 var baseQuery = _context.EventLogs
                     .Where(el => el.Category == "Transaction"
-                        && el.LoggedAT.Date == parsedDate.Date
                         && el.Event == "Status Updated"
                         && el.OldValue == "1"
                         && el.NewValue == "2");
+
+                if (parsedStartDate.HasValue && parsedEndDate.HasValue)
+                {
+                    baseQuery = baseQuery.Where(el => el.LoggedAT.Date >= parsedStartDate.Value.Date && el.LoggedAT.Date <= parsedEndDate.Value.Date);
+                }
+                else if (parsedDate.HasValue)
+                {
+                    baseQuery = baseQuery.Where(el => el.LoggedAT.Date == parsedDate.Value.Date);
+                }
+                else
+                {
+                    return BadRequest("Please provide either a valid date or both startDate and endDate.");
+                }
 
                 if (userId.HasValue)
                 {
@@ -723,7 +979,7 @@ namespace ERPAPI.Controllers
                     });
 
                 var results = await joinedData.ToListAsync();
-                var totalRecords = results.Count;
+               
 
                 var teamIds = results
                     .Where(r => r.t.TeamId != null)
@@ -741,7 +997,6 @@ namespace ERPAPI.Controllers
                     .Where(u => allUserIds.Contains(u.UserId))
                     .ToDictionaryAsync(u => u.UserId, u => u.UserName);
 
-                // 👇 Fetch EventTriggeredBy users for supervisor names
                 var eventTriggeredByIds = results.Select(r => r.el.EventTriggeredBy).Distinct().ToList();
 
                 var triggeredByMap = await _context.Users
@@ -781,7 +1036,6 @@ namespace ERPAPI.Controllers
                             .Select(el => el.LoggedAT)
                             .FirstOrDefault();
 
-                        // ✅ Use username from triggeredByMap
                         string triggeredByUserName = triggeredByMap.ContainsKey(r.el.EventTriggeredBy)
                             ? triggeredByMap[r.el.EventTriggeredBy]
                             : "Unknown";
@@ -819,8 +1073,8 @@ namespace ERPAPI.Controllers
                     .Select(u => new { Name = u.FirstName + " " + u.LastName })
                     .ToListAsync();
 
-                var quantitySheetCount = results.Select(r => r.qs.QuantitySheetId).Distinct().Count();
-                var totalQuantity = results.Sum(r => r.qs.Quantity);
+                
+               
 
                 var logTimes = results.Select(r => r.el.LoggedAT).ToList();
                 var firstLog = logTimes.Min();
@@ -828,29 +1082,16 @@ namespace ERPAPI.Controllers
                 var timeDiff = lastLog - firstLog;
                 string formattedDiff = $"{timeDiff.Days}d:{timeDiff.Hours}h:{timeDiff.Minutes}m:{timeDiff.Seconds}s";
 
-                var lotNos = results.Select(r => r.t.LotNo).Distinct().ToList();
+              
 
-                var quantityByProcess = results
-                    .Where(r => r.t.Status == 2)
-                    .GroupBy(r => r.t.ProcessId)
-                    .Select(g => new
-                    {
-                        ProcessId = g.Key,
-                        TotalQuantity = g.Sum(x => x.qs.Quantity)
-                    })
-                    .ToList();
+        
 
                 return Ok(new
                 {
                     UserTransactionDetails = transactionSummaries,
-                    TotalRecords = totalRecords,
+                   
                     CurrentPage = page,
-                    PageSize = pageSize,
-                    Supervisors = supervisors,
-                    TotalCatches = quantitySheetCount,
-                    TotalQuantity = totalQuantity,
-                    DistinctLotNos = lotNos,
-                    CompletedQuantityByProcess = quantityByProcess
+                    PageSize = pageSize                     
                 });
             }
             catch (Exception ex)
@@ -858,6 +1099,161 @@ namespace ERPAPI.Controllers
                 return StatusCode(500, new { message = "An error occurred", error = ex.Message });
             }
         }
+
+
+
+
+
+
+
+
+        [HttpGet("DailySummary")]
+        public async Task<IActionResult> GetDailySummary(string date = null, string? startDate = null, string? endDate = null, int? userId = null, int? groupId = null)
+        {
+            try
+            {
+                DateTime? parsedDate = null;
+                DateTime? parsedStartDate = null;
+                DateTime? parsedEndDate = null;
+
+                if (!string.IsNullOrEmpty(date))
+                {
+                    if (!DateTime.TryParseExact(date, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsed))
+                        return BadRequest("Invalid date format. Please use dd-MM-yyyy.");
+                    parsedDate = parsed;
+                }
+
+                if (!string.IsNullOrEmpty(startDate))
+                {
+                    if (!DateTime.TryParseExact(startDate, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedStart))
+                        return BadRequest("Invalid startDate format. Please use dd-MM-yyyy.");
+                    parsedStartDate = parsedStart;
+                }
+
+                if (!string.IsNullOrEmpty(endDate))
+                {
+                    if (!DateTime.TryParseExact(endDate, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedEnd))
+                        return BadRequest("Invalid endDate format. Please use dd-MM-yyyy.");
+                    parsedEndDate = parsedEnd;
+                }
+
+                var baseQuery = _context.EventLogs
+                    .Where(el => el.Category == "Transaction"
+                        && el.Event == "Status Updated"
+                        && el.OldValue == "1"
+                        && el.NewValue == "2");
+
+                if (parsedStartDate.HasValue && parsedEndDate.HasValue)
+                {
+                    baseQuery = baseQuery.Where(el => el.LoggedAT.Date >= parsedStartDate.Value.Date && el.LoggedAT.Date <= parsedEndDate.Value.Date);
+                }
+                else if (parsedDate.HasValue)
+                {
+                    baseQuery = baseQuery.Where(el => el.LoggedAT.Date == parsedDate.Value.Date);
+                }
+                else
+                {
+                    return BadRequest("Please provide either a valid date or both startDate and endDate.");
+                }
+
+                if (userId.HasValue)
+                {
+                    baseQuery = baseQuery.Where(el => el.EventTriggeredBy == userId.Value);
+                }
+
+                var joinedData = baseQuery
+                    .Join(_context.Transaction,
+                        el => el.TransactionId,
+                        t => t.TransactionId,
+                        (el, t) => new { el, t })
+                    .Join(_context.QuantitySheets,
+                        joined => joined.t.QuantitysheetId,
+                        qs => qs.QuantitySheetId,
+                        (joined, qs) => new { joined.el, joined.t, qs })
+                    .Join(_context.Projects,
+                        joined => joined.t.ProjectId,
+                        p => p.ProjectId,
+                        (joined, p) => new { joined.el, joined.t, joined.qs, p })
+                    .Join(_context.Groups,
+                        joined => joined.p.GroupId,
+                        g => g.Id,
+                        (joined, g) => new
+                        {
+                            joined.el,
+                            joined.t,
+                            joined.qs,
+                            joined.p,
+                            Group = g
+                        })
+                    .Where(r => !groupId.HasValue || r.p.GroupId == groupId.Value);
+
+                var results = await joinedData.ToListAsync();
+
+                var quantitySheetCount = results.Select(r => r.qs.QuantitySheetId).Distinct().Count();
+                var totalQuantity = results.Sum(r => r.qs.Quantity);
+                var lotNos = results.Select(r => r.t.LotNo).Distinct().ToList();
+
+                var quantityByProcess = results
+                    .Where(r => r.t.Status == 2)
+                    .GroupBy(r => r.t.ProcessId)
+                    .Select(g => new
+                    {
+                        processId = g.Key,
+                        totalQuantity = g.Sum(x => x.qs.Quantity)
+                    })
+                    .ToList();
+
+                var supervisorIds = results.Select(r => r.el.EventTriggeredBy).Distinct().ToList();
+                var supervisors = await _context.Users
+                    .Where(u => supervisorIds.Contains(u.UserId))
+                    .Select(u => new { name = u.FirstName + " " + u.LastName })
+                    .ToListAsync();
+
+                var groupWise = results
+                    .Select(r => new { r.Group.Id, r.Group.Name })
+                    .Distinct()
+                    .Select(g => new
+                    {
+                        groupId = g.Id,
+                        groupName = g.Name
+                    })
+                    .ToList();
+
+                var numberOfGroups = groupWise.Count;
+
+                var projectWise = results
+                    .Select(r => new { r.p.ProjectId, r.p.Name })
+                    .Distinct()
+                    .Select(p => new
+                    {
+                        projectId = p.ProjectId,
+                        projectName = p.Name
+                    })
+                    .ToList();
+
+                var numberOfProjects = projectWise.Count;
+
+                return Ok(new
+                {
+                    supervisors,
+                    totalCatches = quantitySheetCount,
+                    totalQuantity,
+                    distinctLotNos = lotNos,
+                    completedQuantityByProcess = quantityByProcess,
+                    groupWiseCounts = groupWise,
+                    numberOfGroups,
+                    projectWiseCounts = projectWise,
+                    numberOfProjects
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred", error = ex.Message });
+            }
+        }
+
+
+
 
 
 
@@ -900,7 +1296,7 @@ namespace ERPAPI.Controllers
         }
 
 
-        [HttpGet("Daily-Reports")]
+        [HttpGet("Process-Wise")]
         public async Task<IActionResult> GetUniqueTeamAndMachineIds(string date, int processId)
         {
             try
