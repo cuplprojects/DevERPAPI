@@ -1134,7 +1134,7 @@ namespace ERPAPI.Controllers
                 .ToListAsync();
 
             var quantitySheets = await _context.QuantitySheets
-                .Where(p => p.ProjectId == projectId && p.MSSStatus==3)
+                .Where(p => p.ProjectId == projectId && p.MSSStatus == 3)
                 .ToListAsync();
 
             var transactions = await _context.Transaction
@@ -1262,7 +1262,7 @@ namespace ERPAPI.Controllers
                         completedQuantitySheets = relevantQuantitySheets.Count();
                         Console.WriteLine(processId + "completed " + completedQuantitySheets);
                     }
-                    if(processId != 24 && processId != 23)
+                    if (processId != 24 && processId != 23)
                     {
                         completedQuantitySheets = filteredTransactions.Count(); //2
                         Console.WriteLine(processId + "completed " + completedQuantitySheets);
@@ -1396,7 +1396,7 @@ namespace ERPAPI.Controllers
                     var totalSheets = lotQuantitySheets.Count(sheet => sheet.ProcessId.Contains(process.ProcessId));
 
                     // If totalSheets is 0, return 100% (since there is nothing to complete)
-                    if(process.ProcessId == 24)
+                    if (process.ProcessId == 24)
                     {
                         completedSheets = quantitySheets.Count(qs =>
                             qs.LotNo == lotNo &&
@@ -1409,7 +1409,7 @@ namespace ERPAPI.Controllers
                         completedSheets = quantitySheets.Count(qs =>
                             qs.LotNo == lotNo &&
                             qs.ProcessId.Contains(process.ProcessId) &&
-                            qs.MSSStatus >=2
+                            qs.MSSStatus >= 2
                         );
                     }
                     var percentage = totalSheets == 0
