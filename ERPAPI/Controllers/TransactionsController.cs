@@ -853,6 +853,7 @@ namespace ERPAPI.Controllers
                 double projectTotalQuantity = 0;
 
                 foreach (var quantitySheet in quantitySheets)
+
                 {
                     var lotNumber = quantitySheet.LotNo.ToString();
                     var processIdWeightage = new Dictionary<int, double>();
