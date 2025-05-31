@@ -18,6 +18,64 @@ namespace ERPAPI.Controllers
             _context = context;
         }
 
+        [HttpGet("UnderProduction")]
+        public async Task<IActionResult> GetUnderProduction()
+        {
+            // Step 1: Fetch all required data from the database
+            var getProject = await _context.Projects
+                .Select(p => new { p.ProjectId, p.Name, p.GroupId, p.TypeId })
+                .ToListAsync();
+
+            var getdistinctlotsofproject = await _context.QuantitySheets
+                .Where(q => q.Status == 1)
+                .Select(q => new { q.LotNo, q.ProjectId })
+                .Distinct()
+                .ToListAsync();
+
+            var getdispatchedlots = await _context.Dispatch
+                .Select(d => new { d.LotNo, d.ProjectId })
+                .ToListAsync();
+
+            var allQuantitySheets = await _context.QuantitySheets
+                .Where(q => q.Status == 1)
+                .Select(q => new { q.LotNo, q.ProjectId, q.QuantitySheetId, q.Quantity })
+                .ToListAsync();
+
+            // Step 2: Preprocess totals
+            var quantitySheetGroups = allQuantitySheets
+                .GroupBy(q => new { q.LotNo, q.ProjectId })
+                .ToDictionary(
+                    g => g.Key,
+                    g => new {
+                        TotalCatchNo = g.Select(q => q.QuantitySheetId).Count(),
+                        TotalQuantity = g.Sum(q => q.Quantity)
+                    }
+                );
+
+            // Step 3: Perform joins and calculate result in-memory
+            var underProduction = (from project in getProject
+                                   join lot in getdistinctlotsofproject on project.ProjectId equals lot.ProjectId into lots
+                                   from lot in lots.DefaultIfEmpty()
+                                   join dispatch in getdispatchedlots on new { LotNo = lot?.LotNo, project.ProjectId } equals new { dispatch.LotNo, dispatch.ProjectId } into dispatchedLots
+                                   from dispatchedLot in dispatchedLots.DefaultIfEmpty()
+                                   where dispatchedLot == null
+                                   select new
+                                   {
+                                       project.ProjectId,
+                                       project.Name,
+                                       project.GroupId,
+                                       project.TypeId,
+                                       LotNo = lot?.LotNo ?? "N/A",
+                                       TotalCatchNo = (lot?.LotNo != null && quantitySheetGroups.ContainsKey(new { lot.LotNo, lot.ProjectId }))
+                                           ? quantitySheetGroups[new { lot.LotNo, lot.ProjectId }].TotalCatchNo
+                                           : 0,
+                                       TotalQuantity = (lot?.LotNo != null && quantitySheetGroups.ContainsKey(new { lot.LotNo, lot.ProjectId }))
+                                           ? quantitySheetGroups[new { lot.LotNo, lot.ProjectId }].TotalQuantity
+                                           : 0
+                                   }).ToList();
+
+            return Ok(underProduction);
+        }
 
 
         [HttpPost("CreateReport")]
