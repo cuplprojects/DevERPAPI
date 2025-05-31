@@ -1092,6 +1092,45 @@ namespace ERPAPI.Controllers
             }
         }
 
+        [HttpGet("quickCompletion")]
+        public async Task<IActionResult> GetQuickCompletion([FromQuery] string date)
+        {
+            if (!DateTime.TryParseExact(date, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedDate))
+            {
+                return BadRequest("Invalid date format. Use dd-MM-yyyy");
+            }
+
+            var startDate = parsedDate.Date;
+            var endDate = startDate.AddDays(1);
+
+            var logs = await _context.EventLogs
+                .Where(e => e.Event == "Status updated"
+                            && e.LoggedAT >= startDate
+                            && e.LoggedAT < endDate)
+                .ToListAsync();
+
+            var result = (from a in logs
+                          from b in logs
+                          where a.TransactionId == b.TransactionId
+                                && a.EventID != b.EventID
+                                && Math.Abs((a.LoggedAT - b.LoggedAT).TotalMinutes) < 5
+                          orderby a.TransactionId, a.LoggedAT
+                          select new
+                          {
+                              EventID_A = a.EventID,
+                              EventID_B = b.EventID,
+                              Event_A = a.Event,
+                              Event_B = b.Event,
+                              a.TransactionId,
+                              LoggedAT_A = a.LoggedAT,
+                              LoggedAT_B = b.LoggedAT,
+                              TriggeredBy_A = a.EventTriggeredBy,
+                              TriggeredBy_B = b.EventTriggeredBy,
+                              TimeDifferenceMinutes = (int)Math.Abs((a.LoggedAT - b.LoggedAT).TotalMinutes)
+                          }).ToList();
+
+            return Ok(result);
+        }
 
 
 
