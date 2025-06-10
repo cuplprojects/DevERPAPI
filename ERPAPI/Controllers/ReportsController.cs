@@ -1509,6 +1509,175 @@ namespace ERPAPI.Controllers
             }
         }
 
+        [HttpGet("DailyProductionReleaseReport")]
+        public async Task<IActionResult> GetDailyProductionReleaseReport(string? date = null, string? startDate = null, string? endDate = null)
+        {
+            try
+            {
+                DateTime? parsedDate = null;
+                DateTime? parsedStartDate = null;
+                DateTime? parsedEndDate = null;
+
+                if (!string.IsNullOrEmpty(date))
+                {
+                    if (!DateTime.TryParseExact(date, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsed))
+                        return BadRequest("Invalid date format. Use dd-MM-yyyy.");
+                    parsedDate = parsed.Date;
+                }
+
+                if (!string.IsNullOrEmpty(startDate))
+                {
+                    if (!DateTime.TryParseExact(startDate, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedStart))
+                        return BadRequest("Invalid startDate format. Use dd-MM-yyyy.");
+                    parsedStartDate = parsedStart.Date;
+                }
+
+                if (!string.IsNullOrEmpty(endDate))
+                {
+                    if (!DateTime.TryParseExact(endDate, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedEnd))
+                        return BadRequest("Invalid endDate format. Use dd-MM-yyyy.");
+                    parsedEndDate = parsedEnd.Date;
+                }
+
+                // 🚫 DO NOT FILTER HERE
+                var quantitySheetsRaw = await _context.QuantitySheets
+                    .Where(q => q.Status == 1)
+                    .ToListAsync();
+
+                // ✅ Filter in memory using TryParse
+                var quantitySheets = quantitySheetsRaw
+                    .Where(q =>
+                    {
+                        if (DateTime.TryParse(q.ExamDate, out var examDt))
+                        {
+                            if (parsedDate.HasValue)
+                                return examDt.Date == parsedDate.Value;
+                            if (parsedStartDate.HasValue && parsedEndDate.HasValue)
+                                return examDt.Date >= parsedStartDate.Value && examDt.Date <= parsedEndDate.Value;
+                            return true;
+                        }
+                        return false;
+                    })
+                    .ToList();
+
+                var quantitySheetIds = quantitySheets.Select(q => q.QuantitySheetId).ToList();
+
+                var transactions = await _context.Transaction
+                    .Where(t => quantitySheetIds.Contains(t.QuantitysheetId))
+                    .ToListAsync();
+
+                var projectIds = transactions.Select(t => t.ProjectId).Distinct().ToList();
+                var projects = await _context.Projects
+                    .Where(p => projectIds.Contains(p.ProjectId))
+                    .ToListAsync();
+
+                var groupIds = projects.Select(p => p.GroupId).Distinct().ToList();
+                var groups = await _context.Groups
+                    .Where(g => groupIds.Contains(g.Id))
+                    .ToDictionaryAsync(g => g.Id, g => g.Name);
+
+                var joinedData = transactions
+                    .Join(projects, t => t.ProjectId, p => p.ProjectId, (t, p) => new { t, p })
+                    .Join(quantitySheets, tp => tp.t.QuantitysheetId, qs => qs.QuantitySheetId, (tp, qs) => new { tp.t, tp.p, qs })
+                    .ToList();
+
+                var report = joinedData
+                    .GroupBy(x => new { x.t.ProjectId, x.p.TypeId, x.p.GroupId, x.t.LotNo })
+                    .Select(g =>
+                    {
+                        var examDates = g
+                            .Select(x =>
+                            {
+                                DateTime.TryParse(x.qs.ExamDate, out var dt);
+                                return dt;
+                            })
+                            .Where(d => d != default)
+                            .ToList();
+
+                        var minExamDate = examDates.Any() ? examDates.Min().ToString("dd-MM-yyyy") : null;
+                        var maxExamDate = examDates.Any() ? examDates.Max().ToString("dd-MM-yyyy") : null;
+
+                        return new
+                        {
+                            GroupName = groups.ContainsKey(g.Key.GroupId) ? groups[g.Key.GroupId] : "Unknown",
+                            ProjectId = g.Key.ProjectId,
+                            TypeId = g.Key.TypeId,
+                            LotNo = g.Key.LotNo,
+                            From = minExamDate,
+                            To = maxExamDate,
+                            CountOfCatches = g.Count(),
+                            TotalQuantity = g.Sum(x => x.qs.Quantity)
+                        };
+                    })
+                    .ToList();
+
+                return Ok(report);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred", error = ex.Message });
+            }
+        }
+
+        [HttpGet("UnderProduction")]
+        public async Task<IActionResult> GetUnderProduction()
+        {
+            // Step 1: Fetch all required data from the database
+            var getProject = await _context.Projects
+                .Select(p => new { p.ProjectId, p.Name, p.GroupId, p.TypeId })
+                .ToListAsync();
+
+            var getdistinctlotsofproject = await _context.QuantitySheets
+                .Where(q => q.Status == 1)
+                .Select(q => new { q.LotNo, q.ProjectId, q.ExamDate, q.QuantitySheetId, q.Quantity })
+                .Distinct()
+                .ToListAsync();
+
+
+
+            var getdispatchedlots = await _context.Dispatch
+                .Select(d => new { d.LotNo, d.ProjectId })
+                .ToListAsync();
+            var dispatchedLotKeys = new HashSet<string>(
+                getdispatchedlots.Select(d => $"{d.ProjectId}|{d.LotNo}")
+            );
+
+            var quantitySheetGroups = getdistinctlotsofproject
+                .GroupBy(q => new { q.LotNo, q.ProjectId })
+                .ToDictionary(
+                    g => $"{g.Key.ProjectId}|{g.Key.LotNo}",
+                    g => new {
+                        TotalCatchNo = g.Select(q => q.QuantitySheetId).Count(),
+                        TotalQuantity = g.Sum(q => q.Quantity),
+                        FromDate = g.Min(q => DateTime.TryParse(q.ExamDate, out var d) ? d : DateTime.MinValue),
+                        ToDate = g.Max(q => DateTime.TryParse(q.ExamDate, out var d) ? d : DateTime.MinValue)
+                    }
+                      );
+
+
+
+            // Step 3: Perform joins and calculate result in-memory
+            var underProduction = (from project in getProject
+                                   from kvp in quantitySheetGroups
+                                   let keyParts = kvp.Key.Split(new[] { '|' }, StringSplitOptions.None)
+                                   let projectId = int.Parse(keyParts[0])
+                                   let lotNo = keyParts[1]
+                                   where project.ProjectId == projectId && !dispatchedLotKeys.Contains(kvp.Key)
+                                   select new
+                                   {
+                                       project.ProjectId,
+                                       project.Name,
+                                       project.GroupId,
+                                       FromDate = kvp.Value.FromDate,
+                                       ToDate = kvp.Value.ToDate,
+                                       project.TypeId,
+                                       LotNo = lotNo,
+                                       TotalCatchNo = kvp.Value.TotalCatchNo,
+                                       TotalQuantity = kvp.Value.TotalQuantity
+                                   }).ToList();
+
+            return Ok(underProduction);
+        }
 
 
     }
