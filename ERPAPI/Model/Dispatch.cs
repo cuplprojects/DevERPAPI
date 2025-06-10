@@ -42,5 +42,6 @@ namespace ERPAPI.Model
         public DateTime? UpdatedAt { get; set; } // Timestamp for when the dispatch is last updated
 
         public bool Status { get; set; } // Status of the dispatch (true or false)
+        public DateTime? DispatchDate { get; set; } // Date when the dispatch is made
     }
 }
