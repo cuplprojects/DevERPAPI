@@ -50,7 +50,7 @@ namespace ERPAPI.Controllers
                 _context.SaveChanges();
 
                 // Check the user's RoleId
-                if (user.RoleId != 6)
+                if (user.RoleId != 6 && user.RoleId != 7)
                 {
                     // Generate and hash a password for the user
                     string generatedPassword = Passwordgen.GeneratePassword();
