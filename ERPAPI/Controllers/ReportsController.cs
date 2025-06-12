@@ -28,50 +28,51 @@ namespace ERPAPI.Controllers
 
             var getdistinctlotsofproject = await _context.QuantitySheets
                 .Where(q => q.Status == 1)
-                .Select(q => new { q.LotNo, q.ProjectId })
+                .Select(q => new { q.LotNo, q.ProjectId, q.ExamDate, q.QuantitySheetId,q.Quantity })
                 .Distinct()
                 .ToListAsync();
+           
+            
 
             var getdispatchedlots = await _context.Dispatch
                 .Select(d => new { d.LotNo, d.ProjectId })
                 .ToListAsync();
+            var dispatchedLotKeys = new HashSet<string>(
+      getdispatchedlots.Select(d => $"{d.ProjectId}|{d.LotNo}")
+  );
 
-            var allQuantitySheets = await _context.QuantitySheets
-                .Where(q => q.Status == 1)
-                .Select(q => new { q.LotNo, q.ProjectId, q.QuantitySheetId, q.Quantity })
-                .ToListAsync();
-
-            // Step 2: Preprocess totals
-            var quantitySheetGroups = allQuantitySheets
+            var quantitySheetGroups = getdistinctlotsofproject
                 .GroupBy(q => new { q.LotNo, q.ProjectId })
                 .ToDictionary(
-                    g => g.Key,
+                  g => $"{g.Key.ProjectId}|{g.Key.LotNo}",
                     g => new {
                         TotalCatchNo = g.Select(q => q.QuantitySheetId).Count(),
-                        TotalQuantity = g.Sum(q => q.Quantity)
+                        TotalQuantity = g.Sum(q => q.Quantity),
+                        FromDate = g.Min(q => DateTime.TryParse(q.ExamDate, out var d) ? d : DateTime.MinValue),
+                        ToDate = g.Max(q => DateTime.TryParse(q.ExamDate, out var d) ? d : DateTime.MinValue)
                     }
                 );
 
+          
+
             // Step 3: Perform joins and calculate result in-memory
             var underProduction = (from project in getProject
-                                   join lot in getdistinctlotsofproject on project.ProjectId equals lot.ProjectId into lots
-                                   from lot in lots.DefaultIfEmpty()
-                                   join dispatch in getdispatchedlots on new { LotNo = lot?.LotNo, project.ProjectId } equals new { dispatch.LotNo, dispatch.ProjectId } into dispatchedLots
-                                   from dispatchedLot in dispatchedLots.DefaultIfEmpty()
-                                   where dispatchedLot == null
+                                   from kvp in quantitySheetGroups
+                                   let keyParts = kvp.Key.Split(new[] { '|' }, StringSplitOptions.None)
+                                   let projectId = int.Parse(keyParts[0])
+                                   let lotNo = keyParts[1]
+                                   where project.ProjectId == projectId && !dispatchedLotKeys.Contains(kvp.Key)
                                    select new
                                    {
                                        project.ProjectId,
                                        project.Name,
                                        project.GroupId,
+                                       FromDate = kvp.Value.FromDate,
+                                       ToDate = kvp.Value.ToDate,
                                        project.TypeId,
-                                       LotNo = lot?.LotNo ?? "N/A",
-                                       TotalCatchNo = (lot?.LotNo != null && quantitySheetGroups.ContainsKey(new { lot.LotNo, lot.ProjectId }))
-                                           ? quantitySheetGroups[new { lot.LotNo, lot.ProjectId }].TotalCatchNo
-                                           : 0,
-                                       TotalQuantity = (lot?.LotNo != null && quantitySheetGroups.ContainsKey(new { lot.LotNo, lot.ProjectId }))
-                                           ? quantitySheetGroups[new { lot.LotNo, lot.ProjectId }].TotalQuantity
-                                           : 0
+                                       LotNo =lotNo,
+                                       TotalCatchNo = kvp.Value.TotalCatchNo,
+                                       TotalQuantity = kvp.Value.TotalQuantity
                                    }).ToList();
 
             return Ok(underProduction);
