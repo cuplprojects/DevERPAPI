@@ -18,6 +18,65 @@ namespace ERPAPI.Controllers
             _context = context;
         }
 
+        [HttpGet("UnderProduction")]
+        public async Task<IActionResult> GetUnderProduction()
+        {
+            // Step 1: Fetch all required data from the database
+            var getProject = await _context.Projects
+                .Select(p => new { p.ProjectId, p.Name, p.GroupId, p.TypeId })
+                .ToListAsync();
+
+            var getdistinctlotsofproject = await _context.QuantitySheets
+                .Where(q => q.Status == 1)
+                .Select(q => new { q.LotNo, q.ProjectId, q.ExamDate, q.QuantitySheetId,q.Quantity })
+                .Distinct()
+                .ToListAsync();
+           
+            
+
+            var getdispatchedlots = await _context.Dispatch
+                .Select(d => new { d.LotNo, d.ProjectId })
+                .ToListAsync();
+            var dispatchedLotKeys = new HashSet<string>(
+      getdispatchedlots.Select(d => $"{d.ProjectId}|{d.LotNo}")
+  );
+
+            var quantitySheetGroups = getdistinctlotsofproject
+                .GroupBy(q => new { q.LotNo, q.ProjectId })
+                .ToDictionary(
+                  g => $"{g.Key.ProjectId}|{g.Key.LotNo}",
+                    g => new {
+                        TotalCatchNo = g.Select(q => q.QuantitySheetId).Count(),
+                        TotalQuantity = g.Sum(q => q.Quantity),
+                        FromDate = g.Min(q => DateTime.TryParse(q.ExamDate, out var d) ? d : DateTime.MinValue),
+                        ToDate = g.Max(q => DateTime.TryParse(q.ExamDate, out var d) ? d : DateTime.MinValue)
+                    }
+                );
+
+          
+
+            // Step 3: Perform joins and calculate result in-memory
+            var underProduction = (from project in getProject
+                                   from kvp in quantitySheetGroups
+                                   let keyParts = kvp.Key.Split(new[] { '|' }, StringSplitOptions.None)
+                                   let projectId = int.Parse(keyParts[0])
+                                   let lotNo = keyParts[1]
+                                   where project.ProjectId == projectId && !dispatchedLotKeys.Contains(kvp.Key)
+                                   select new
+                                   {
+                                       project.ProjectId,
+                                       project.Name,
+                                       project.GroupId,
+                                       FromDate = kvp.Value.FromDate,
+                                       ToDate = kvp.Value.ToDate,
+                                       project.TypeId,
+                                       LotNo =lotNo,
+                                       TotalCatchNo = kvp.Value.TotalCatchNo,
+                                       TotalQuantity = kvp.Value.TotalQuantity
+                                   }).ToList();
+
+            return Ok(underProduction);
+        }
 
 
         [HttpPost("CreateReport")]
@@ -1619,66 +1678,7 @@ namespace ERPAPI.Controllers
             }
         }
 
-        [HttpGet("UnderProduction")]
-        public async Task<IActionResult> GetUnderProduction()
-        {
-            // Step 1: Fetch all required data from the database
-            var getProject = await _context.Projects
-                .Select(p => new { p.ProjectId, p.Name, p.GroupId, p.TypeId })
-                .ToListAsync();
-
-            var getdistinctlotsofproject = await _context.QuantitySheets
-                .Where(q => q.Status == 1)
-                .Select(q => new { q.LotNo, q.ProjectId, q.ExamDate, q.QuantitySheetId, q.Quantity })
-                .Distinct()
-                .ToListAsync();
-
-
-
-            var getdispatchedlots = await _context.Dispatch
-                .Select(d => new { d.LotNo, d.ProjectId })
-                .ToListAsync();
-            var dispatchedLotKeys = new HashSet<string>(
-                getdispatchedlots.Select(d => $"{d.ProjectId}|{d.LotNo}")
-            );
-
-            var quantitySheetGroups = getdistinctlotsofproject
-                .GroupBy(q => new { q.LotNo, q.ProjectId })
-                .ToDictionary(
-                    g => $"{g.Key.ProjectId}|{g.Key.LotNo}",
-                    g => new {
-                        TotalCatchNo = g.Select(q => q.QuantitySheetId).Count(),
-                        TotalQuantity = g.Sum(q => q.Quantity),
-                        FromDate = g.Min(q => DateTime.TryParse(q.ExamDate, out var d) ? d : DateTime.MinValue),
-                        ToDate = g.Max(q => DateTime.TryParse(q.ExamDate, out var d) ? d : DateTime.MinValue)
-                    }
-                      );
-
-
-
-            // Step 3: Perform joins and calculate result in-memory
-            var underProduction = (from project in getProject
-                                   from kvp in quantitySheetGroups
-                                   let keyParts = kvp.Key.Split(new[] { '|' }, StringSplitOptions.None)
-                                   let projectId = int.Parse(keyParts[0])
-                                   let lotNo = keyParts[1]
-                                   where project.ProjectId == projectId && !dispatchedLotKeys.Contains(kvp.Key)
-                                   select new
-                                   {
-                                       project.ProjectId,
-                                       project.Name,
-                                       project.GroupId,
-                                       FromDate = kvp.Value.FromDate,
-                                       ToDate = kvp.Value.ToDate,
-                                       project.TypeId,
-                                       LotNo = lotNo,
-                                       TotalCatchNo = kvp.Value.TotalCatchNo,
-                                       TotalQuantity = kvp.Value.TotalQuantity
-                                   }).ToList();
-
-            return Ok(underProduction);
-        }
-
+      
 
     }
 }
