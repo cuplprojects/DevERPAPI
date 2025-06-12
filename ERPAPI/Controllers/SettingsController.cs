@@ -36,9 +36,27 @@ namespace ERPAPI.Controllers
                 return BadRequest("Invalid setting data.");
             }
 
-            _context.MySettings.Add(setting);
+            // Check if a setting with the same UserId already exists
+            var existingSetting = await _context.MySettings
+                                                .FirstOrDefaultAsync(p => p.UserId == setting.UserId);
+
+            if (existingSetting != null)
+            {
+                // If exists, update the existing setting
+                existingSetting.Settings = setting.Settings;  // Update other properties as needed
+
+                // Optionally, you can log the update or handle it differently
+                _context.MySettings.Update(existingSetting);
+            }
+            else
+            {
+                // If not, add the new setting
+                _context.MySettings.Add(setting);
+            }
+
             await _context.SaveChangesAsync();
             return CreatedAtAction(nameof(GetSettings), new { id = setting.SettingId }, setting);
         }
+
     }
 }
