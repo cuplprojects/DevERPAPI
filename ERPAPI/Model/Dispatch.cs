@@ -43,5 +43,6 @@ namespace ERPAPI.Model
 
         public bool Status { get; set; } // Status of the dispatch (true or false)
         public DateTime? DispatchDate { get; set; } // Date when the dispatch is made
+        public int? ModeCount { get; set; } // Count of modes used in the dispatch
     }
 }
