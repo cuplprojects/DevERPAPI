@@ -17,6 +17,19 @@ namespace ERPAPI.Controllers
             _context = context;
         }
 
+        [HttpGet("byUser/{userId:int}")]
+        public async Task<IActionResult> GetSettingsByUserId(int userId)
+        {
+            var setting = await _context.MySettings.FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (setting == null)
+                return NotFound("Settings not found for this user.");
+
+            return Ok(setting);
+        }
+
+
+
         [HttpGet]
         public async Task<IActionResult> GetSettings()
         {
