@@ -7,10 +7,6 @@ namespace ERPAPI.Model
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-<<<<<<< HEAD
-
-=======
->>>>>>> roy
         public int SettingId { get; set; }
         public string Settings { get; set; }
         public int UserId { get; set; }
