@@ -155,6 +155,44 @@ namespace ERPAPI.Controllers
         }
 
 
+        [Authorize]
+        [HttpGet("messenger")]
+        public async Task<ActionResult<IEnumerable<User>>> GetMessengers()
+        {
+            try
+            {
+                // Retrieve users with roles 6 or 4 and add FullName as a concatenation of FirstName and MiddleName
+                var users = await Task.FromResult(
+                    _context.Users
+                        .Where(r => r.RoleId == 7)
+                        .Select(u => new
+                        {
+                            u.UserId,
+                            u.FirstName,
+                            u.MiddleName,
+                            u.LastName,
+                            u.RoleId,
+                            u.Address,
+                            u.Gender,
+                            u.UserName,
+                            u.Status,
+                            u.MobileNo,
+                            u.LocationId,
+                            FullName = u.FirstName + " " + u.MiddleName + " " + u.LastName// Concatenate FirstName and MiddleName
+                        })
+                        .ToList()
+                );
+
+                return Ok(users);
+            }
+            catch (Exception ex)
+            {
+                _loggerService.LogError("Failed to retrieve messengers", ex.Message, "UserController");
+                return StatusCode(500, "Failed to retrieve messengers");
+            }
+        }
+
+
         [HttpGet("LoggedUser")]
         [Authorize] // Ensures the request is authenticated
         public async Task<ActionResult<User>> GetUserByJwt()
