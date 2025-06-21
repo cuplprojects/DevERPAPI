@@ -39,6 +39,57 @@ namespace ERPAPI.Controllers
             }
         }
 
+
+        [HttpGet("CatchWithAlarms")]
+        public async Task<ActionResult<IEnumerable<object>>> GetCatchWithAlarms()
+        {
+            try
+            {
+                var result = await (
+                    from t in _context.Transaction
+                    where t.AlarmId != null || t.Remarks != null || t.VoiceRecording != null
+                    join p in _context.Projects on t.ProjectId equals p.ProjectId into projGroup
+                    from p in projGroup.DefaultIfEmpty()
+
+                    join pr in _context.Processes on t.ProcessId equals pr.Id into procGroup
+                    from pr in procGroup.DefaultIfEmpty()
+
+                    join a in _context.Alarm on t.AlarmId equals a.AlarmId.ToString() into alarmGroup
+                    from a in alarmGroup.DefaultIfEmpty()
+
+                    join qs in _context.QuantitySheets on t.QuantitysheetId equals qs.QuantitySheetId into qsGroup
+                    from qs in qsGroup.DefaultIfEmpty()
+
+                    select new
+                    {
+                        TransactionId = t.TransactionId,
+                        AlarmId = t.AlarmId,
+                        Remarks = t.Remarks,
+                        VoiceRecording = t.VoiceRecording,
+                        ProcessId = t.ProcessId,
+                        ProjectId = t.ProjectId,
+                        ProjectName = p != null ? p.Name : null,
+                        ProcessName = pr != null ? pr.Name : null,
+                        AlarmMessage = a != null ? a.Message : null,  // Replace 'Message' with actual column
+                        LotNo = t.LotNo,
+                        CatchNo = qs != null ? qs.CatchNo : null       // Replace 'CatchNo' with actual column
+                    }
+                ).ToListAsync();
+
+                if (result == null || !result.Any())
+                {
+                    return NotFound("No transactions found with alarms or remarks.");
+                }
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                // Optional: log ex.Message for diagnostics
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
         // GET: api/Alarms/5
         [HttpGet("{id}")]
         public async Task<ActionResult<Alarm>> GetAlarm(int id)
