@@ -27,11 +27,9 @@ namespace ERPAPI.Model
         public string? MessengerMobile { get; set; }
 
         [StringLength(50)]  // Limits the length to 50 characters for DispatchMode
-<<<<<<< HEAD
+
         public string? DispatchMode { get; set; }
-=======
-        public string ? DispatchMode { get; set; }
->>>>>>> Madhavi
+
 
         [StringLength(50)]  // Limits the length to 50 characters for VehicleNumber
         public string? VehicleNumber { get; set; }

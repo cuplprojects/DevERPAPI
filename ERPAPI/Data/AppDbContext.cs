@@ -46,10 +46,6 @@ namespace ERPAPI.Data
         public DbSet<Subject> Subjects { get; set; }
         public DbSet<Language> Languages { get; set; }
         public DbSet<ABCD> ABCD { get; set; }
-<<<<<<< HEAD
-
-=======
->>>>>>> Madhavi
         public DbSet<DailyTask> DailyTasks { get; set; }
 
         public DbSet<Display> Displays { get; set; }
