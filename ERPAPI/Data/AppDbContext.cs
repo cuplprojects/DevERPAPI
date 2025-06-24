@@ -3,6 +3,8 @@ using ERPGenericFunctions.Model;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Reflection.Emit;
+using static ERPAPI.Controllers.DispatchController;
+using System.Text.Json;
 
 namespace ERPAPI.Data
 {
@@ -64,6 +66,13 @@ namespace ERPAPI.Data
                 .HasIndex(t => t.LabelKey)
                 .IsUnique(); // This makes LabelKey a unique index
 
+
+
+            modelBuilder.Entity<Dispatch>()
+        .Property(d => d.DispatchDetails)
+        .HasConversion(
+            v => JsonSerializer.Serialize(v, (JsonSerializerOptions)null),
+            v => JsonSerializer.Deserialize<List<DispatchDetail>>(v, (JsonSerializerOptions)null));
         }
 
 

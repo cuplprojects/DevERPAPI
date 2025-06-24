@@ -1,6 +1,7 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using static ERPAPI.Controllers.DispatchController;
 
 namespace ERPAPI.Model
 {
@@ -26,7 +27,9 @@ namespace ERPAPI.Model
         public string? MessengerMobile { get; set; }
 
         [StringLength(50)]  // Limits the length to 50 characters for DispatchMode
-        public string ? DispatchMode { get; set; }
+
+        public string? DispatchMode { get; set; }
+
 
         [StringLength(50)]  // Limits the length to 50 characters for VehicleNumber
         public string? VehicleNumber { get; set; }
@@ -43,5 +46,8 @@ namespace ERPAPI.Model
 
         public bool Status { get; set; } // Status of the dispatch (true or false)
         public DateTime? DispatchDate { get; set; } // Date when the dispatch is made
+        public int? ModeCount { get; set; } // Count of modes used in the dispatch
+        public List<DispatchDetail> ?DispatchDetails { get; set; }
+
     }
 }

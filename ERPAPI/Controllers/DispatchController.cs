@@ -47,7 +47,9 @@ namespace ERPAPI.Controllers
                     dispatch.CreatedAt,
                     dispatch.UpdatedAt,
                     dispatch.Status,
-                    dispatch.DispatchDate
+                    dispatch.DispatchDate,
+                    dispatch.ModeCount,
+                    dispatch.DispatchDetails
                 }).ToList();
 
               
@@ -119,7 +121,9 @@ namespace ERPAPI.Controllers
                     dispatch.CreatedAt,
                     dispatch.UpdatedAt,
                     dispatch.Status,
-                    dispatch.DispatchDate
+                    dispatch.DispatchDate,
+                    dispatch.ModeCount,
+                    dispatch.DispatchDetails
                 }).ToList();
 
               
@@ -167,7 +171,9 @@ namespace ERPAPI.Controllers
                     dispatch.CreatedAt,
                     dispatch.UpdatedAt,
                     dispatch.Status,
-                    dispatch.DispatchDate
+                    dispatch.DispatchDate,
+                    dispatch.ModeCount,
+                    dispatch.DispatchDetails
                 }).ToList();
 
 
@@ -220,10 +226,21 @@ namespace ERPAPI.Controllers
 
         // POST: api/Dispatch
         [HttpPost]
-        public async Task<ActionResult<Dispatch>> PostDispatch(Dispatch dispatch)
+        public async Task<ActionResult<Dispatch>> PostDispatch(DispatchCreateDto dto)
         {
             try
             {
+                var dispatch = new Dispatch
+                {
+                    ProcessId = dto.ProcessId, // Assuming ProcessId is the same as ProjectId for this example
+                    ProjectId = dto.ProjectId,
+                    LotNo = dto.LotNo,
+                    BoxCount = dto.BoxCount,
+                    DispatchDate = dto.DispatchDate,
+                    ModeCount = dto.ModeCount,
+                    DispatchDetails = dto.DispatchDetails
+                };
+
                 _context.Dispatch.Add(dispatch);
                 await _context.SaveChangesAsync();
 
@@ -366,5 +383,30 @@ namespace ERPAPI.Controllers
         {
             return _context.Dispatch.Any(e => e.Id == id);
         }
+
+        public class DispatchDetail
+        {
+           // public string Mode { get; set; } // e.g. "Exam", "Practical", etc.
+            public string VehicleType { get; set; }
+            public string VehicleNumber { get; set; }
+            public string DriverName { get; set; }
+            public string DriverMobile { get; set; }
+            public string MessengerName { get; set; }
+            public string MessengerMobile { get; set; }
+        }
+
+        public class DispatchCreateDto
+        {
+            public int ProcessId { get; set; } 
+            public int ProjectId { get; set; }
+            public string LotNo { get; set; }
+            public int BoxCount { get; set; }
+            public DateTime DispatchDate { get; set; }
+            public int ModeCount { get; set; }
+            public List<DispatchDetail> DispatchDetails { get; set; }
+            
+        }
+
+
     }
 }
