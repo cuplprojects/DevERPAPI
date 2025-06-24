@@ -25,9 +25,9 @@ namespace ERPAPI.Controllers
             var getProject = await _context.Projects
                 .Select(p => new { p.ProjectId, p.Name, p.GroupId, p.TypeId })
                 .ToListAsync();
-
+            var thresholdDateString = "2025-06-25T00:00:00.000Z";
             var getdistinctlotsofproject = await _context.QuantitySheets
-                .Where(q => q.Status == 1)
+                .Where(q => q.Status == 1 && string.Compare(q.ExamDate, thresholdDateString) >= 0)
                 .Select(q => new { q.LotNo, q.ProjectId, q.ExamDate, q.QuantitySheetId,q.Quantity })
                 .Distinct()
                 .ToListAsync();

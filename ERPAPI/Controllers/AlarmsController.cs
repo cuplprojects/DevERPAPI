@@ -85,7 +85,6 @@ namespace ERPAPI.Controllers
             }
             catch (Exception ex)
             {
-                // Optional: log ex.Message for diagnostics
                 return StatusCode(500, "Internal server error");
             }
         }
