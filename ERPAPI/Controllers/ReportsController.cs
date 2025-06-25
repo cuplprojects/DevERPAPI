@@ -1501,6 +1501,8 @@ namespace ERPAPI.Controllers
             }
         }
 
+
+
         [HttpGet("Process-Production-Report-Group-Wise")]
         public async Task<IActionResult> GetGroupProcessWiseProjectReportByDateRange(
             [FromQuery] string? date,
@@ -1694,365 +1696,337 @@ namespace ERPAPI.Controllers
 
 
 
+        [HttpGet("User-Wise")]
+        public async Task<IActionResult> GetDailyReports(
+int userId, // REQUIRED now
+string date = null,
+string? startDate = null,
+string? endDate = null,
+int? groupId = null,
+int page = 1,
+int pageSize = 10)
+        {
+            try
+            {
+                DateTime? parsedDate = null;
+                DateTime? parsedStartDate = null;
+                DateTime? parsedEndDate = null;
+
+                if (!string.IsNullOrEmpty(date))
+                {
+                    if (!DateTime.TryParseExact(date, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsed))
+                        return BadRequest("Invalid date format. Please use dd-MM-yyyy.");
+                    parsedDate = parsed;
+                }
+
+                if (!string.IsNullOrEmpty(startDate))
+                {
+                    if (!DateTime.TryParseExact(startDate, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedStart))
+                        return BadRequest("Invalid startDate format. Please use dd-MM-yyyy.");
+                    parsedStartDate = parsedStart;
+                }
+
+                if (!string.IsNullOrEmpty(endDate))
+                {
+                    if (!DateTime.TryParseExact(endDate, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedEnd))
+                        return BadRequest("Invalid endDate format. Please use dd-MM-yyyy.");
+                    parsedEndDate = parsedEnd;
+                }
+
+                var baseQuery = _context.EventLogs
+                    .Where(el => el.Category == "Transaction"
+                        && el.Event == "Status Updated"
+                        && el.OldValue == "1"
+                        && el.NewValue == "2");
+
+                if (parsedStartDate.HasValue && parsedEndDate.HasValue)
+                {
+                    baseQuery = baseQuery.Where(el => el.LoggedAT.Date >= parsedStartDate.Value.Date && el.LoggedAT.Date <= parsedEndDate.Value.Date);
+                }
+                else if (parsedDate.HasValue)
+                {
+                    baseQuery = baseQuery.Where(el => el.LoggedAT.Date == parsedDate.Value.Date);
+                }
+                else
+                {
+                    return BadRequest("Please provide either a valid date or both startDate and endDate.");
+                }
+
+                baseQuery = baseQuery.Where(el => el.EventTriggeredBy == userId);
+
+                var joinedData = baseQuery
+                    .Join(_context.Transaction,
+                        el => el.TransactionId,
+                        t => t.TransactionId,
+                        (el, t) => new { el, t })
+                    .Join(_context.QuantitySheets,
+                        joined => joined.t.QuantitysheetId,
+                        qs => qs.QuantitySheetId,
+                        (joined, qs) => new { joined.el, joined.t, qs })
+                    .Join(_context.Projects,
+                        joined => joined.t.ProjectId,
+                        p => p.ProjectId,
+                        (joined, p) => new { joined.el, joined.t, joined.qs, p })
+                    .Join(_context.Groups,
+                        joined => joined.p.GroupId,
+                        g => g.Id,
+                        (joined, g) => new
+                        {
+                            joined.el,
+                            joined.t,
+                            joined.qs,
+                            joined.p,
+                            Group = g
+                        })
+                    .Where(r => !groupId.HasValue || r.p.GroupId == groupId.Value)
+                    .Select(r => new
+                    {
+                        r.el,
+                        r.t,
+                        r.qs,
+                        r.p,
+                        GroupName = r.Group.Name
+                    });
+
+                var results = await joinedData.ToListAsync();
+
+                var teamIds = results
+                    .Where(r => r.t.TeamId != null)
+                    .SelectMany(r => r.t.TeamId)
+                    .Distinct()
+                    .ToList();
+
+                var teamUserMap = await _context.Teams
+                    .Where(t => teamIds.Contains(t.TeamId))
+                    .ToDictionaryAsync(t => t.TeamId, t => t.UserIds);
+
+                var allUserIds = teamUserMap.Values.SelectMany(u => u).Distinct().ToList();
+
+                var userMap = await _context.Users
+                    .Where(u => allUserIds.Contains(u.UserId))
+                    .ToDictionaryAsync(u => u.UserId, u => u.UserName);
+
+                var eventTriggeredByIds = results.Select(r => r.el.EventTriggeredBy).Distinct().ToList();
+
+                var triggeredByMap = await _context.Users
+                    .Where(u => eventTriggeredByIds.Contains(u.UserId))
+                    .ToDictionaryAsync(u => u.UserId, u => u.UserName);
+
+                var transactionIds = results.Select(r => r.t.TransactionId).Distinct().ToList();
+
+                var eventLogsPerTransaction = await _context.EventLogs
+                    .Where(el => transactionIds.Contains(el.TransactionId.Value))
+                    .GroupBy(el => el.TransactionId.Value)
+                    .Select(g => new
+                    {
+                        TransactionId = g.Key,
+                        StartTime = g.Min(el => el.LoggedAT),
+                        EndTime = g.Max(el => el.LoggedAT)
+                    })
+                    .ToListAsync();
+
+                var eventLogMap = eventLogsPerTransaction.ToDictionary(e => e.TransactionId, e => new { StartTime = (DateTime?)e.StartTime, EndTime = (DateTime?)e.EndTime });
+
+                var pagedResults = results
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToList();
+
+                var transactionSummaries = pagedResults
+                    .GroupBy(r => triggeredByMap.ContainsKey(r.el.EventTriggeredBy)
+                        ? triggeredByMap[r.el.EventTriggeredBy]
+                        : "Unknown")
+                    .Select(group => new
+                    {
+                        Supervisor = group.Key,
+                        Transactions = group.Select(r =>
+                        {
+                            var userIds = r.t.TeamId != null
+                                ? r.t.TeamId
+                                    .Where(tid => teamUserMap.ContainsKey(tid))
+                                    .SelectMany(tid => teamUserMap[tid])
+                                    .Distinct()
+                                    .ToList()
+                                : new List<int>();
+
+                            var userNames = userIds
+                                .Where(uid => userMap.ContainsKey(uid))
+                                .Select(uid => userMap[uid])
+                                .ToList();
+
+                            var startEndTime = eventLogMap.ContainsKey(r.t.TransactionId)
+                                ? eventLogMap[r.t.TransactionId]
+                                : new { StartTime = (DateTime?)null, EndTime = (DateTime?)null };
+
+                            return new
+                            {
+                                TransactionId = r.t.TransactionId,
+                                ProjectName = r.p.Name,
+                                QuantitySheetId = r.t.QuantitysheetId,
+                                ZoneId = r.t.ZoneId,
+                                CatchNo = r.qs.CatchNo,
+                                GroupName = r.GroupName,
+                                StartTime = startEndTime.StartTime,
+                                EndTime = startEndTime.EndTime,
+                                ProcessId = r.t.ProcessId,
+                                Quantity = r.qs.Quantity,
+                                MachineId = r.t.MachineId,
+                                Lot = r.t.LotNo,
+                                StatusCode = r.t.Status,
+                                TeamMembersNames = userNames
+                            };
+                        }).ToList()
+                    })
+                    .ToList();
+
+                return Ok(new
+                {
+                    UserTransactionDetails = transactionSummaries,
+                    CurrentPage = page,
+                    PageSize = pageSize
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred", error = ex.Message });
+            }
+        }
+
+
+        [HttpGet("User-Wise-Summary")]
+        public async Task<IActionResult> GetUserWiseSummary(
+        int? userId, // Optional
+        string date = null,
+        string startDate = null,
+        string endDate = null,
+        int? groupId = null)
+        {
+            try
+            {
+                DateTime? parsedDate = null;
+                DateTime? parsedStartDate = null;
+                DateTime? parsedEndDate = null;
+
+                if (!string.IsNullOrEmpty(date))
+                {
+                    if (!DateTime.TryParseExact(date, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsed))
+                        return BadRequest("Invalid date format. Please use dd-MM-yyyy.");
+                    parsedDate = parsed;
+                }
+
+                if (!string.IsNullOrEmpty(startDate))
+                {
+                    if (!DateTime.TryParseExact(startDate, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedStart))
+                        return BadRequest("Invalid startDate format. Please use dd-MM-yyyy.");
+                    parsedStartDate = parsedStart;
+                }
+
+                if (!string.IsNullOrEmpty(endDate))
+                {
+                    if (!DateTime.TryParseExact(endDate, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedEnd))
+                        return BadRequest("Invalid endDate format. Please use dd-MM-yyyy.");
+                    parsedEndDate = parsedEnd;
+                }
+
+                var baseQuery = _context.EventLogs
+                    .Where(el => el.Category == "Transaction"
+                        && el.Event == "Status Updated"
+                        && el.OldValue == "1"
+                        && el.NewValue == "2");
+
+                if (parsedStartDate.HasValue && parsedEndDate.HasValue)
+                {
+                    baseQuery = baseQuery.Where(el => el.LoggedAT.Date >= parsedStartDate.Value.Date && el.LoggedAT.Date <= parsedEndDate.Value.Date);
+                }
+                else if (parsedDate.HasValue)
+                {
+                    baseQuery = baseQuery.Where(el => el.LoggedAT.Date == parsedDate.Value.Date);
+                }
+                else
+                {
+                    return BadRequest("Please provide either a valid date or both startDate and endDate.");
+                }
+
+                if (userId.HasValue)
+                {
+                    baseQuery = baseQuery.Where(el => el.EventTriggeredBy == userId.Value);
+                }
+
+                var joinedData = baseQuery
+                    .Join(_context.Transaction,
+                        el => el.TransactionId,
+                        t => t.TransactionId,
+                        (el, t) => new { el, t })
+                    .Join(_context.QuantitySheets,
+                        joined => joined.t.QuantitysheetId,
+                        qs => qs.QuantitySheetId,
+                        (joined, qs) => new { joined.el, joined.t, qs })
+                    .Join(_context.Projects,
+                        joined => joined.t.ProjectId,
+                        p => p.ProjectId,
+                        (joined, p) => new { joined.el, joined.t, joined.qs, p })
+                    .Join(_context.Groups,
+                        joined => joined.p.GroupId,
+                        g => g.Id,
+                        (joined, g) => new
+                        {
+                            joined.el,
+                            joined.t,
+                            joined.qs,
+                            joined.p,
+                            Group = g
+                        })
+                    .Where(r => !groupId.HasValue || r.p.GroupId == groupId.Value)
+                    .Select(r => new
+                    {
+                        r.el,
+                        r.t,
+                        r.qs,
+                        r.p,
+                        GroupName = r.Group.Name,
+                        GroupId = r.p.GroupId
+                    });
+
+                var results = await joinedData.ToListAsync();
+
+                var eventTriggeredByIds = results.Select(r => r.el.EventTriggeredBy).Distinct().ToList();
+
+                var triggeredByMap = await _context.Users
+                    .Where(u => eventTriggeredByIds.Contains(u.UserId))
+                    .ToDictionaryAsync(u => u.UserId, u => u.UserName);
+
+                var summary = results
+                    .GroupBy(r => triggeredByMap.ContainsKey(r.el.EventTriggeredBy)
+                        ? triggeredByMap[r.el.EventTriggeredBy]
+                        : "Unknown")
+                    .Select(group => new
+                    {
+                        Supervisor = group.Key,
+                        CatchCount = group.Count(),
+                        TotalQuantity = group.Sum(r => r.qs.Quantity), // Sum of Quantity
+                        ProcessIds = group.Select(r => r.t.ProcessId).Distinct().ToArray(),
+                        ProjectIds = group.Select(r => r.t.ProjectId).Distinct().ToArray(),
+                        GroupIds = group.Select(r => r.GroupId).Distinct().ToArray()
+                    })
+                    .ToList();
+
+                return Ok(new
+                {
+                    UserWiseSummary = summary
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred", error = ex.Message });
+            }
+        }
 
 
 
-        //[HttpGet("Process-Production-Report-Group-Wise")]
-        //public async Task<IActionResult> GetGroupProcessWiseDataByDateRange(
-        //   [FromQuery] string? date,
-        //   [FromQuery] string? startDate,
-        //   [FromQuery] string? endDate,
-        //   [FromQuery] List<int>? groupId) // 👈 groupId as array
-        //{
-        //    try
-        //    {
-        //        DateTime? parsedDate = null;
-        //        DateTime? parsedStartDate = null;
-        //        DateTime? parsedEndDate = null;
-
-        //        if (!string.IsNullOrEmpty(date))
-        //        {
-        //            if (!DateTime.TryParseExact(date, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsed))
-        //                return BadRequest("Invalid date format. Use dd-MM-yyyy.");
-        //            parsedDate = parsed.Date;
-        //        }
-
-        //        if (!string.IsNullOrEmpty(startDate))
-        //        {
-        //            if (!DateTime.TryParseExact(startDate, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedStart))
-        //                return BadRequest("Invalid startDate format. Use dd-MM-yyyy.");
-        //            parsedStartDate = parsedStart.Date;
-        //        }
-
-        //        if (!string.IsNullOrEmpty(endDate))
-        //        {
-        //            if (!DateTime.TryParseExact(endDate, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedEnd))
-        //                return BadRequest("Invalid endDate format. Use dd-MM-yyyy.");
-        //            parsedEndDate = parsedEnd.Date;
-        //        }
-
-        //        // Step 1: Filter EventLogs
-        //        var eventLogQuery = _context.EventLogs
-        //            .Where(el => el.Category == "Transaction"
-        //                && el.Event == "Status Updated"
-        //                && el.OldValue == "1"
-        //                && el.NewValue == "2"
-        //                && el.TransactionId != null);
-
-        //        if (parsedStartDate.HasValue && parsedEndDate.HasValue)
-        //        {
-        //            eventLogQuery = eventLogQuery.Where(el => el.LoggedAT.Date >= parsedStartDate.Value && el.LoggedAT.Date <= parsedEndDate.Value);
-        //        }
-        //        else if (parsedDate.HasValue)
-        //        {
-        //            eventLogQuery = eventLogQuery.Where(el => el.LoggedAT.Date == parsedDate.Value);
-        //        }
-
-        //        var filteredLogs = await eventLogQuery.ToListAsync();
-        //        var validTransactionIds = filteredLogs.Select(el => el.TransactionId.Value).Distinct().ToList();
-
-        //        // Step 2: Get Transactions
-        //        var transactions = await _context.Transaction
-        //            .Where(t => validTransactionIds.Contains(t.TransactionId))
-        //            .ToListAsync();
-
-        //        var projectIds = transactions.Select(t => t.ProjectId).Distinct().ToList();
-
-        //        // Step 3: Get Projects with TypeId and GroupId
-        //        var projectQuery = _context.Projects
-        //            .Where(p => projectIds.Contains(p.ProjectId));
-
-        //        if (groupId != null && groupId.Any()) // 👈 filter by groupId list
-        //            projectQuery = projectQuery.Where(p => groupId.Contains(p.GroupId));
-
-        //        var projectDict = await projectQuery
-        //            .ToDictionaryAsync(p => p.ProjectId, p => new { p.TypeId, p.GroupId });
-
-        //        if (!projectDict.Any())
-        //            return Ok(new List<object>()); // No matching projects
-
-        //        // Step 4: Filter Transactions by valid projects
-        //        transactions = transactions
-        //            .Where(t => projectDict.ContainsKey(t.ProjectId))
-        //            .ToList();
-
-        //        // Step 5: Segregate transactions by TypeId
-        //        var bookletTransactions = transactions
-        //            .Where(t => projectDict[t.ProjectId].TypeId == 1)
-        //            .Select(t => new { t.TransactionId, t.QuantitysheetId, t.ProcessId, t.ProjectId })
-        //            .ToList();
-
-        //        var paperTransactions = transactions
-        //            .Where(t => projectDict[t.ProjectId].TypeId == 2)
-        //            .Select(t => new { t.TransactionId, t.QuantitysheetId, t.ProcessId, t.ProjectId })
-        //            .ToList();
-
-        //        var bookletSheetIds = bookletTransactions.Select(x => x.QuantitysheetId).Distinct().ToList();
-        //        var paperSheetIds = paperTransactions.Select(x => x.QuantitysheetId).Distinct().ToList();
-
-        //        var quantitySheets = await _context.QuantitySheets
-        //            .Where(qs => bookletSheetIds.Contains(qs.QuantitySheetId) || paperSheetIds.Contains(qs.QuantitySheetId))
-        //            .ToListAsync();
-
-        //        var quantitySheetDict = quantitySheets.ToDictionary(qs => qs.QuantitySheetId, qs => qs.Quantity);
-
-        //        // Step 6: Group and project
-        //        var result = new List<object>();
-
-        //        double totalCompletedBookletQuantity = 0;
-        //        int totalCompletedBookletCatch = 0;
-
-        //        double totalCompletedPaperQuantity = 0;
-        //        int totalCompletedPaperCatch = 0;
-
-        //        var allProcessIds = transactions.Select(t => t.ProcessId).Distinct();
-
-        //        foreach (var processId in allProcessIds)
-        //        {
-        //            var bookletCatches = bookletTransactions
-        //                .Where(t => t.ProcessId == processId)
-        //                .GroupBy(t => t.QuantitysheetId)
-        //                .Select(g => g.Key)
-        //                .Distinct()
-        //                .ToList();
-
-        //            var paperCatches = paperTransactions
-        //                .Where(t => t.ProcessId == processId)
-        //                .GroupBy(t => t.QuantitysheetId)
-        //                .Select(g => g.Key)
-        //                .Distinct()
-        //                .ToList();
-
-        //            var bookletQuantity = bookletCatches
-        //                .Where(qid => quantitySheetDict.ContainsKey(qid))
-        //                .Sum(qid => quantitySheetDict[qid]);
-
-        //            var paperQuantity = paperCatches
-        //                .Where(qid => quantitySheetDict.ContainsKey(qid))
-        //                .Sum(qid => quantitySheetDict[qid]);
-
-        //            totalCompletedBookletCatch += bookletCatches.Count;
-        //            totalCompletedBookletQuantity += bookletQuantity;
-
-        //            totalCompletedPaperCatch += paperCatches.Count;
-        //            totalCompletedPaperQuantity += paperQuantity;
-
-        //            var groupIds = transactions
-        //                .Where(t => t.ProcessId == processId && projectDict.ContainsKey(t.ProjectId))
-        //                .Select(t => projectDict[t.ProjectId].GroupId)
-        //                .Distinct()
-        //                .ToList();
-
-        //            result.Add(new
-        //            {
-        //                ProcessId = processId,
-        //                GroupIds = groupIds,
-        //                CompletedTotalCatchesInBooklet = bookletCatches.Count,
-        //                CompletedTotalQuantityInBooklet = bookletQuantity,
-        //                CompletedTotalCatchesInPaper = paperCatches.Count,
-        //                CompletedTotalQuantityInPaper = paperQuantity
-        //            });
-        //        }
-
-        //        // Add grand total
-        //        result.Add(new
-        //        {
-        //            ProcessId = "Total",
-        //            GroupIds = groupId ?? new List<int>(), // pass groupId array back
-        //            CompletedTotalCatchesInBooklet = totalCompletedBookletCatch,
-        //            CompletedTotalQuantityInBooklet = totalCompletedBookletQuantity,
-        //            CompletedTotalCatchesInPaper = totalCompletedPaperCatch,
-        //            CompletedTotalQuantityInPaper = totalCompletedPaperQuantity
-        //        });
-
-        //        return Ok(result.OrderBy(x => ((dynamic)x).ProcessId.ToString()).ToList());
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        return StatusCode(500, new { message = "An error occurred", error = ex.Message });
-        //    }
-        //}
-
-
-
-        //[HttpGet("Process-Pending-Report-Project-Wise")]
-        //public async Task<IActionResult> GetProcessWiseProjectsReportByDateRange(
-        //    [FromQuery] string? date,
-        //    [FromQuery] string? startDate,
-        //    [FromQuery] string? endDate,
-        //    [FromQuery] int? processId)
-        //{
-        //    try
-        //    {
-        //        if (!processId.HasValue || processId.Value <= 0)
-        //            return BadRequest("processId is required and must be greater than 0.");
-
-        //        DateTime? parsedDate = null;
-        //        DateTime? parsedStartDate = null;
-        //        DateTime? parsedEndDate = null;
-
-        //        if (!string.IsNullOrEmpty(date))
-        //        {
-        //            if (!DateTime.TryParseExact(date, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsed))
-        //                return BadRequest("Invalid date format. Use dd-MM-yyyy.");
-        //            parsedDate = parsed.Date;
-        //        }
-
-        //        if (!string.IsNullOrEmpty(startDate))
-        //        {
-        //            if (!DateTime.TryParseExact(startDate, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedStart))
-        //                return BadRequest("Invalid startDate format. Use dd-MM-yyyy.");
-        //            parsedStartDate = parsedStart.Date;
-        //        }
-
-        //        if (!string.IsNullOrEmpty(endDate))
-        //        {
-        //            if (!DateTime.TryParseExact(endDate, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedEnd))
-        //                return BadRequest("Invalid endDate format. Use dd-MM-yyyy.");
-        //            parsedEndDate = parsedEnd.Date;
-        //        }
-
-        //        var eventLogQuery = _context.EventLogs
-        //            .Where(el => el.Category == "Transaction"
-        //                && el.Event == "Status Updated"
-        //                && el.OldValue == "1"
-        //                && el.NewValue == "2"
-        //                && el.TransactionId != null);
-
-        //        if (parsedStartDate.HasValue && parsedEndDate.HasValue)
-        //        {
-        //            eventLogQuery = eventLogQuery.Where(el => el.LoggedAT.Date >= parsedStartDate.Value && el.LoggedAT.Date <= parsedEndDate.Value);
-        //        }
-        //        else if (parsedDate.HasValue)
-        //        {
-        //            eventLogQuery = eventLogQuery.Where(el => el.LoggedAT.Date == parsedDate.Value);
-        //        }
-
-        //        var filteredLogs = await eventLogQuery.ToListAsync();
-        //        var validTransactionIds = filteredLogs.Select(el => el.TransactionId.Value).Distinct().ToList();
-
-        //        var transactions = await _context.Transaction
-        //            .Where(t => validTransactionIds.Contains(t.TransactionId) && t.ProcessId == processId)
-        //            .ToListAsync();
-
-        //        if (!transactions.Any())
-        //            return Ok(new List<object>());
-
-        //        var projectIds = transactions.Select(t => t.ProjectId).Distinct().ToList();
-
-        //        var projects = await _context.Projects
-        //            .Where(p => projectIds.Contains(p.ProjectId))
-        //            .ToDictionaryAsync(p => p.ProjectId, p => p.TypeId); // 1 = Booklet, 2 = Paper
-
-        //        var bookletTransactions = transactions
-        //            .Where(t => projects.ContainsKey(t.ProjectId) && projects[t.ProjectId] == 1)
-        //            .Select(t => new { t.TransactionId, t.QuantitysheetId, t.ProjectId })
-        //            .ToList();
-
-        //        var paperTransactions = transactions
-        //            .Where(t => projects.ContainsKey(t.ProjectId) && projects[t.ProjectId] == 2)
-        //            .Select(t => new { t.TransactionId, t.QuantitysheetId, t.ProjectId })
-        //            .ToList();
-
-        //        var quantitySheets = await _context.QuantitySheets
-        //            .Where(qs => projectIds.Contains(qs.ProjectId))
-        //            .ToDictionaryAsync(qs => qs.QuantitySheetId, qs => new
-        //            {
-        //                qs.Quantity,
-        //                qs.ProjectId,
-        //                qs.CatchNo // Ensure CatchNo is a valid column
-        //            });
-
-        //        var result = new List<object>();
-
-        //        foreach (var projId in projectIds)
-        //        {
-        //            var typeId = projects.ContainsKey(projId) ? projects[projId] : (int?)null;
-
-        //            var bookletCatches = bookletTransactions
-        //                .Where(t => t.ProjectId == projId)
-        //                .Select(t => t.QuantitysheetId)
-        //                .Distinct()
-        //                .ToList();
-
-        //            var bookletQuantity = bookletCatches
-        //                .Where(qid => quantitySheets.ContainsKey(qid))
-        //                .Sum(qid => (int)quantitySheets[qid].Quantity);
-
-        //            var paperCatches = paperTransactions
-        //                .Where(t => t.ProjectId == projId)
-        //                .Select(t => t.QuantitysheetId)
-        //                .Distinct()
-        //                .ToList();
-
-        //            var paperQuantity = paperCatches
-        //                .Where(qid => quantitySheets.ContainsKey(qid))
-        //                .Sum(qid => (int)quantitySheets[qid].Quantity);
-
-        //            var allSheetIdsForProject = quantitySheets
-        //                .Where(q => q.Value.ProjectId == projId)
-        //                .Select(q => q.Key)
-        //                .Distinct()
-        //                .ToList();
-
-        //            var totalProjectQuantity = allSheetIdsForProject
-        //                .Sum(qid => (int)quantitySheets[qid].Quantity);
-
-        //            var totalProjectCatchCount = allSheetIdsForProject.Count;
-
-        //            int? pendingCountOfCatchesInPaper = null;
-        //            int? pendingQuantityInPaper = null;
-        //            if (paperCatches.Count > 0 && paperQuantity > 0)
-        //            {
-        //                pendingCountOfCatchesInPaper = totalProjectCatchCount - paperCatches.Count;
-        //                pendingQuantityInPaper = totalProjectQuantity - paperQuantity;
-        //            }
-
-        //            int? pendingCountOfCatchesInBooklet = null;
-        //            int? pendingQuantityInBooklet = null;
-        //            if (bookletCatches.Count > 0 && bookletQuantity > 0)
-        //            {
-        //                pendingCountOfCatchesInBooklet = totalProjectCatchCount - bookletCatches.Count;
-        //                pendingQuantityInBooklet = totalProjectQuantity - bookletQuantity;
-        //            }
-
-        //            var pendingCatchList = quantitySheets
-        //                .Where(q =>
-        //                    q.Value.ProjectId == projId &&
-        //                    !bookletCatches.Contains(q.Key) &&
-        //                    !paperCatches.Contains(q.Key))
-        //                .Select(q => new
-        //                {
-        //                    QuantitySheetId = q.Key,
-        //                    CatchNo = q.Value.CatchNo
-        //                })
-        //                .ToList();
-
-        //            result.Add(new
-        //            {
-        //                ProjectId = projId,
-        //                TypeId = typeId,
-        //                CompletedTotalCatchesInBooklet = bookletCatches.Count,
-        //                CompletedTotalQuantityInBooklet = bookletQuantity,
-        //                CompletedTotalCatchesInPaper = paperCatches.Count,
-        //                CompletedTotalQuantityInPaper = paperQuantity,
-        //                ProjectTotalCatchCount = totalProjectCatchCount,
-        //                ProjectTotalQuantity = totalProjectQuantity,
-        //                PendingCountOfCatchesInPaper = pendingCountOfCatchesInPaper,
-        //                PendingQuantityInPaper = pendingQuantityInPaper,
-        //                PendingCountOfCatchesInBooklet = pendingCountOfCatchesInBooklet,
-        //                PendingQuantityInBooklet = pendingQuantityInBooklet,
-        //                PendingCatches = pendingCatchList
-        //            });
-        //        }
-
-        //        return Ok(result.OrderBy(x => ((dynamic)x).ProjectId).ToList());
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        return StatusCode(500, new { message = "An error occurred", error = ex.Message });
-        //    }
-        //}
+
+
+
+
 
 
 
