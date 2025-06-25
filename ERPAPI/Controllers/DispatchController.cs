@@ -46,7 +46,10 @@ namespace ERPAPI.Controllers
                     dispatch.DriverMobile,
                     dispatch.CreatedAt,
                     dispatch.UpdatedAt,
-                    dispatch.Status
+                    dispatch.Status,
+                    dispatch.DispatchDate,
+                    dispatch.ModeCount,
+                    dispatch.DispatchDetails
                 }).ToList();
 
               
@@ -117,7 +120,10 @@ namespace ERPAPI.Controllers
                     dispatch.DriverMobile,
                     dispatch.CreatedAt,
                     dispatch.UpdatedAt,
-                    dispatch.Status
+                    dispatch.Status,
+                    dispatch.DispatchDate,
+                    dispatch.ModeCount,
+                    dispatch.DispatchDetails
                 }).ToList();
 
               
@@ -164,7 +170,10 @@ namespace ERPAPI.Controllers
                     dispatch.DriverMobile,
                     dispatch.CreatedAt,
                     dispatch.UpdatedAt,
-                    dispatch.Status
+                    dispatch.Status,
+                    dispatch.DispatchDate,
+                    dispatch.ModeCount,
+                    dispatch.DispatchDetails
                 }).ToList();
 
 
@@ -217,10 +226,21 @@ namespace ERPAPI.Controllers
 
         // POST: api/Dispatch
         [HttpPost]
-        public async Task<ActionResult<Dispatch>> PostDispatch(Dispatch dispatch)
+        public async Task<ActionResult<Dispatch>> PostDispatch(DispatchCreateDto dto)
         {
             try
             {
+                var dispatch = new Dispatch
+                {
+                    ProcessId = dto.ProcessId, // Assuming ProcessId is the same as ProjectId for this example
+                    ProjectId = dto.ProjectId,
+                    LotNo = dto.LotNo,
+                    BoxCount = dto.BoxCount,
+                    DispatchDate = dto.DispatchDate,
+                    ModeCount = dto.ModeCount,
+                    DispatchDetails = dto.DispatchDetails
+                };
+
                 _context.Dispatch.Add(dispatch);
                 await _context.SaveChangesAsync();
 
@@ -233,6 +253,105 @@ namespace ERPAPI.Controllers
                 return StatusCode(500, "Internal server error");
             }
         }
+
+
+        [HttpGet("dispatch-summary-today")]
+        public async Task<ActionResult<object>> GetTodayDispatchWithQuantitySummary()
+        {
+            try
+            {
+                var today = DateTime.Today;
+
+                // 1. Get all dispatches with today's DispatchDate
+                var dispatches = await _context.Dispatch
+                    .Where(d => d.DispatchDate >= today && d.DispatchDate < today.AddDays(1))
+                    .ToListAsync();
+
+                if (dispatches == null || !dispatches.Any())
+                {
+                    return NotFound("No dispatches found for today.");
+                }
+
+
+                var dispatchLotNos = dispatches.Select(d => d.LotNo).Distinct().ToList();
+                var projectIds = dispatches.Select(d => d.ProjectId).Distinct().ToList();
+
+                // 2. Get QuantitySheet records matching those LotNos and ProjectIds
+                var quantitySheets = await _context.QuantitySheets
+                    .Where(q => dispatchLotNos.Contains(q.LotNo) && projectIds.Contains(q.ProjectId))
+                    .ToListAsync();
+
+                // 3. Calculate totals
+                var totalCatches = quantitySheets.Select(q => q.CatchNo).Count();
+                var totalQuantity = quantitySheets.Sum(q => q.Quantity);
+
+                // 4. Min/Max exam dates
+                DateTime? examFrom = null;
+                DateTime? examTo = null;
+                var validExamDates = quantitySheets
+                    .Where(q => DateTime.TryParse(q.ExamDate, out _))
+                    .Select(q => DateTime.Parse(q.ExamDate))
+                    .ToList();
+
+                if (validExamDates.Any())
+                {
+                    examFrom = validExamDates.Min();
+                    examTo = validExamDates.Max();
+                }
+
+                // 5. Build response
+                var response = new
+                {
+                    Dispatches = dispatches.Select(dispatch =>
+                    {
+                        var qsForDispatch = quantitySheets
+                            .Where(q => q.ProjectId == dispatch.ProjectId && q.LotNo == dispatch.LotNo)
+                            .ToList();
+
+                        var totalCatches = qsForDispatch.Select(q => q.CatchNo).Count();
+                        var totalQuantity = qsForDispatch.Sum(q => q.Quantity);
+
+                        DateTime? examFrom = null;
+                        DateTime? examTo = null;
+
+                        var validExamDates = qsForDispatch
+                            .Where(q => DateTime.TryParse(q.ExamDate, out _))
+                            .Select(q => DateTime.Parse(q.ExamDate))
+                            .ToList();
+
+                        if (validExamDates.Any())
+                        {
+                            examFrom = validExamDates.Min();
+                            examTo = validExamDates.Max();
+                        }
+
+                        return new
+                        {
+                            dispatch.Id,
+                            dispatch.ProjectId,
+                            dispatch.LotNo,
+                            dispatch.BoxCount,
+                            dispatch.DispatchDate,
+                            QuantitySheetSummary = new
+                            {
+                                TotalCatches = totalCatches,
+                                TotalQuantity = totalQuantity,
+                                ExamFrom = examFrom,
+                                ExamTo = examTo
+                            }
+                        };
+                    })
+                };
+
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                _loggerService.LogError("Error in GetTodayDispatchWithQuantitySummary", ex.Message, nameof(DispatchController));
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
 
         // DELETE: api/Dispatch/5
         [HttpDelete("{id}")]
@@ -264,5 +383,30 @@ namespace ERPAPI.Controllers
         {
             return _context.Dispatch.Any(e => e.Id == id);
         }
+
+        public class DispatchDetail
+        {
+           // public string Mode { get; set; } // e.g. "Exam", "Practical", etc.
+            public string VehicleType { get; set; }
+            public string VehicleNumber { get; set; }
+            public string DriverName { get; set; }
+            public string DriverMobile { get; set; }
+            public string MessengerName { get; set; }
+            public string MessengerMobile { get; set; }
+        }
+
+        public class DispatchCreateDto
+        {
+            public int ProcessId { get; set; } 
+            public int ProjectId { get; set; }
+            public string LotNo { get; set; }
+            public int BoxCount { get; set; }
+            public DateTime DispatchDate { get; set; }
+            public int ModeCount { get; set; }
+            public List<DispatchDetail> DispatchDetails { get; set; }
+            
+        }
+
+
     }
 }

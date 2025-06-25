@@ -3,6 +3,8 @@ using ERPGenericFunctions.Model;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Reflection.Emit;
+using static ERPAPI.Controllers.DispatchController;
+using System.Text.Json;
 
 namespace ERPAPI.Data
 {
@@ -44,8 +46,10 @@ namespace ERPAPI.Data
         public DbSet<Subject> Subjects { get; set; }
         public DbSet<Language> Languages { get; set; }
         public DbSet<ABCD> ABCD { get; set; }
+        public DbSet<DailyTask> DailyTasks { get; set; }
 
         public DbSet<Display> Displays { get; set; }
+        public DbSet<MySettings> MySettings { get; set; }
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<UserDisplay> UserDisplays { get; set; }
 
@@ -62,6 +66,13 @@ namespace ERPAPI.Data
                 .HasIndex(t => t.LabelKey)
                 .IsUnique(); // This makes LabelKey a unique index
 
+
+
+            modelBuilder.Entity<Dispatch>()
+        .Property(d => d.DispatchDetails)
+        .HasConversion(
+            v => JsonSerializer.Serialize(v, (JsonSerializerOptions)null),
+            v => JsonSerializer.Deserialize<List<DispatchDetail>>(v, (JsonSerializerOptions)null));
         }
 
 

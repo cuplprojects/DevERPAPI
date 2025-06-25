@@ -50,7 +50,7 @@ namespace ERPAPI.Controllers
                 _context.SaveChanges();
 
                 // Check the user's RoleId
-                if (user.RoleId != 6)
+                if (user.RoleId != 6 && user.RoleId != 7)
                 {
                     // Generate and hash a password for the user
                     string generatedPassword = Passwordgen.GeneratePassword();
@@ -151,6 +151,44 @@ namespace ERPAPI.Controllers
             {
                 _loggerService.LogError("Failed to retrieve operators", ex.Message, "UserController");
                 return StatusCode(500, "Failed to retrieve operators");
+            }
+        }
+
+
+        [Authorize]
+        [HttpGet("messenger")]
+        public async Task<ActionResult<IEnumerable<User>>> GetMessengers()
+        {
+            try
+            {
+                // Retrieve users with roles 6 or 4 and add FullName as a concatenation of FirstName and MiddleName
+                var users = await Task.FromResult(
+                    _context.Users
+                        .Where(r => r.RoleId == 7)
+                        .Select(u => new
+                        {
+                            u.UserId,
+                            u.FirstName,
+                            u.MiddleName,
+                            u.LastName,
+                            u.RoleId,
+                            u.Address,
+                            u.Gender,
+                            u.UserName,
+                            u.Status,
+                            u.MobileNo,
+                            u.LocationId,
+                            FullName = u.FirstName + " " + u.MiddleName + " " + u.LastName// Concatenate FirstName and MiddleName
+                        })
+                        .ToList()
+                );
+
+                return Ok(users);
+            }
+            catch (Exception ex)
+            {
+                _loggerService.LogError("Failed to retrieve messengers", ex.Message, "UserController");
+                return StatusCode(500, "Failed to retrieve messengers");
             }
         }
 
