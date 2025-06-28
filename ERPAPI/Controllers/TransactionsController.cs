@@ -1584,91 +1584,192 @@ namespace ERPAPI.Controllers
         [HttpGet("Process-Train")]
         public async Task<ActionResult> GetProcessCalculation(int projectId, int LotNo)
         {
-            // Step 1: Get the process sequence for the given projectId from the ProjectProcess table
-            var processSequence = await _context.ProjectProcesses
+            // Step 1: Get the process sequence for the given projectId
+            var processSequence = await GetProcessSequenceAsync(projectId);
+            LogProcessSequence(processSequence);
+
+            var cuttingSequence = GetCuttingSequence(processSequence);
+            var firstProcess = processSequence.FirstOrDefault();
+            Console.WriteLine("Found 1st Process" + firstProcess);
+
+            // Step 2: Get project details
+            var project = await GetProjectDetailsAsync(projectId);
+            var type = project.TypeId;
+            var numberOfSeries = project.NoOfSeries;
+            Console.WriteLine($"Type: {type}, NoOfSeries: {numberOfSeries}");
+
+            // Step 3: Get independent processes
+            var independentProcesses = await GetIndependentProcessesAsync();
+            LogIndependentProcesses(independentProcesses);
+
+            // Step 4: Get transaction details for first process
+            var transactionDetails = await GetTransactionDetailsAsync(projectId, LotNo, firstProcess.ProcessId);
+            LogTransactionDetails(transactionDetails);
+
+            // Step 5: Calculate CTP and Digital quantities
+            var ctpMetrics = CalculateProcessMetrics(transactionDetails, 1);
+            var digitalMetrics = CalculateProcessMetrics(transactionDetails, 3);
+
+            // Step 6: Get all processes and transactions
+            var allProcesses = await GetAllProcessesAsync(projectId);
+            var transactions = await GetAllTransactionsAsync(projectId, LotNo);
+            var mssReceived = await GetMSSReceivedAsync(projectId, LotNo);
+
+            // Step 7: Calculate process counts
+            var processCounts = CalculateProcessCounts(allProcesses, transactions);
+
+            // Step 8: Finalize process counts with proper ordering
+            var finalizedProcessCounts = FinalizeProcessCounts(processCounts, processSequence);
+            LogFinalizedProcessCounts(finalizedProcessCounts);
+
+            // Step 9: Adjust quantities based on business rules
+            await AdjustProcessQuantities(
+                finalizedProcessCounts,
+                processSequence,
+                independentProcesses,
+                cuttingSequence,
+                type,
+                numberOfSeries,
+                ctpMetrics,
+                digitalMetrics,
+                mssReceived);
+
+            return Ok(finalizedProcessCounts);
+        }
+
+        
+
+        private async Task<List<dynamic>> GetProcessSequenceAsync(int projectId)
+        {
+            return await _context.ProjectProcesses
                 .Where(pp => pp.ProjectId == projectId)
-                .OrderBy(pp => pp.Sequence) // Assuming 'Sequence' field determines the order
+                .OrderBy(pp => pp.Sequence)
                 .Select(pp => new { pp.ProcessId, pp.Sequence })
-                .ToListAsync();
+                .ToListAsync<object>();
+        }
+
+        private void LogProcessSequence(List<dynamic> processSequence)
+        {
             foreach (var p in processSequence)
             {
-                Console.WriteLine(p); //15,1,2,3,4,
+                Console.WriteLine(p);
             }
+        }
 
+        private dynamic GetCuttingSequence(List<dynamic> processSequence)
+        {
+            var cuttingSequence = processSequence.Where(p => p.ProcessId == 4).FirstOrDefault();
+            if (cuttingSequence == null)
+            {
+                cuttingSequence = processSequence.Where(p => p.ProcessId == 3).FirstOrDefault();
+            }
+            else
+            {
+                Console.WriteLine($"Found cutting sequence with ProcessId: {cuttingSequence.ProcessId}");
+            }
+            return cuttingSequence;
+        }
 
-            var cuttingsequence = processSequence.Where(p => p.ProcessId == 4).FirstOrDefault();
-
-
-            var process1 = processSequence.FirstOrDefault();
-            var project = await _context.Projects
+        private async Task<dynamic> GetProjectDetailsAsync(int projectId)
+        {
+            return await _context.Projects
                 .Where(p => p.ProjectId == projectId)
                 .Select(p => new { p.TypeId, p.NoOfSeries })
                 .FirstOrDefaultAsync();
+        }
 
-            var type = project.TypeId;
-            Console.WriteLine(type); //1
-            var noofseries = project.NoOfSeries;
-            Console.WriteLine(noofseries); //4
+        private async Task<List<dynamic>> GetIndependentProcessesAsync()
+        {
+            return await _context.Processes
+                .Where(p => p.ProcessType == "Independent")
+                .Select(p => new { p.Id, p.RangeEnd })
+                .ToListAsync<object>();
+        }
 
-
-
-            var transactionDetails = await (from t in _context.Transaction
-                                            join q in _context.QuantitySheets on t.QuantitysheetId equals q.QuantitySheetId
-                                            where t.ProjectId == projectId && t.LotNo == LotNo && t.ProcessId == process1.ProcessId && t.Status == 2
-                                            select new
-                                            {
-                                                t.TransactionId,
-                                                t.ProjectId,
-                                                t.QuantitysheetId,
-                                                q.ProcessId,
-                                                t.ZoneId,
-                                                t.MachineId,
-                                                t.Status,
-                                                t.AlarmId,
-                                                t.LotNo,
-                                                t.TeamId,
-                                                q.Quantity,
-                                            }).ToListAsync();
-
-            var transactionsinCTP = transactionDetails.Where(t => t.ProcessId.Contains(1)).ToList();
-            var sumOfQuantitiesInCTP = transactionsinCTP.Sum(t => t.Quantity);
-            var transactionsinDigital = transactionDetails.Where(t => t.ProcessId.Contains(3)).ToList();
-            var sumOfQuantitiesInDigital = transactionsinDigital.Sum(t => t.Quantity);
-            var CountofCatchesInCTP = transactionsinCTP.Count();
-            var CountofCatchesInDigital = transactionsinDigital.Count();
-            foreach (var tctp in transactionsinDigital)
+        private void LogIndependentProcesses(List<dynamic> independentProcesses)
+        {
+            foreach (var p in independentProcesses)
             {
-                string processIds = string.Join(",", tctp.ProcessId);
+                Console.WriteLine("Independent process" + p);
+            }
+        }
 
-                Console.WriteLine(tctp.QuantitysheetId + ">" + tctp.Quantity + ">" + processIds);
+        private async Task<List<dynamic>> GetTransactionDetailsAsync(int projectId, int lotNo, int processId)
+        {
+            return await (from t in _context.Transaction
+                          join q in _context.QuantitySheets on t.QuantitysheetId equals q.QuantitySheetId
+                          where t.ProjectId == projectId && t.LotNo == lotNo && t.ProcessId == processId && t.Status == 2
+                          select new
+                          {
+                              t.TransactionId,
+                              t.ProjectId,
+                              t.QuantitysheetId,
+                              q.ProcessId,
+                              t.ZoneId,
+                              t.MachineId,
+                              t.Status,
+                              t.AlarmId,
+                              t.LotNo,
+                              t.TeamId,
+                              q.Quantity,
+                          }).ToListAsync<object>();
+        }
+
+        private void LogTransactionDetails(List<dynamic> transactionDetails)
+        {
+            foreach (var t in transactionDetails)
+            {
+                Console.WriteLine($"TransactionId: {t.TransactionId}, Quantity: {t.Quantity}, ProcessId: {string.Join(",", t.ProcessId)}");
+            }
+        }
+
+        private (int sumOfQuantities, int countOfCatches) CalculateProcessMetrics(List<dynamic> transactionDetails, int processId)
+        {
+            var transactionsInProcess = transactionDetails.Where(t => t.ProcessId.Contains(processId)).ToList();
+            var sumOfQuantities = transactionsInProcess.Sum(t => t.Quantity);
+            var countOfCatches = transactionsInProcess.Count();
+
+            foreach (var transaction in transactionsInProcess)
+            {
+                string processIds = string.Join(",", transaction.ProcessId);
             }
 
-            // Step 2: Get the first transaction's ProcessId for the given ProjectId and LotNo
-            var sequence1ProcessId = await _context.ProjectProcesses
-                .Where(pp => pp.ProjectId == projectId && pp.Sequence == 1)
-                .Select(pp => pp.ProcessId)
-                .FirstOrDefaultAsync();
+            return (sumOfQuantities, countOfCatches);
+        }
 
-            // Step 3: Get all processes related to the project
-            var allProcesses = await _context.ProjectProcesses
+        private async Task<List<dynamic>> GetAllProcessesAsync(int projectId)
+        {
+            return await _context.ProjectProcesses
                 .Where(pp => pp.ProjectId == projectId)
                 .Join(_context.Processes,
                       pp => pp.ProcessId,
                       p => p.Id,
                       (pp, p) => new { pp.ProcessId, p.Name, p.ProcessType, pp.Sequence, p.RangeStart })
-                .ToListAsync();
+                .ToListAsync<object>();
+        }
 
-            // Step 4: Retrieve transactions and perform a LEFT JOIN with allProcesses
-            var transactions = await _context.Transaction
-                .Where(t => t.ProjectId == projectId && t.LotNo == LotNo)
+        private async Task<List<dynamic>> GetAllTransactionsAsync(int projectId, int lotNo)
+        {
+            return await _context.Transaction
+                .Where(t => t.ProjectId == projectId && t.LotNo == lotNo)
                 .Join(_context.QuantitySheets,
                       t => t.QuantitysheetId,
                       q => q.QuantitySheetId,
                       (t, q) => new { t.ProcessId, t.Status, q.Quantity, q.CatchNo })
-                .ToListAsync();
+                .ToListAsync<object>();
+        }
 
-            // Step 5: Combine allProcesses with transactions using a LEFT JOIN in-memory
-            var processCounts = allProcesses
+        private async Task<List<dynamic>> GetMSSReceivedAsync(int projectId, int lotNo)
+        {
+            return await _context.QuantitySheets
+                .Where(q => q.ProjectId == projectId && q.MSSStatus > 0 && q.LotNo == lotNo.ToString())
+                .Select(q => new { q.QuantitySheetId, q.ProcessId, q.Quantity, q.CatchNo, q.MSSStatus })
+                .ToListAsync<object>();
+        }
+
+        private List<ProcessCalculationResult> CalculateProcessCounts(List<dynamic> allProcesses, List<dynamic> transactions)
+        {
+            return allProcesses
                 .GroupJoin(transactions,
                     process => process.ProcessId,
                     transaction => transaction.ProcessId,
@@ -1677,20 +1778,26 @@ namespace ERPAPI.Controllers
                         ProcessId = process.ProcessId,
                         ProcessName = process.Name,
                         ProcessType = process.ProcessType,
-                        WIPCount = transGroup.Count(t => t.Status == 1), // Count for Status 1
-                        CompletedCount = transGroup.Count(t => t.Status == 2), // Count for Status 2
-                        WIPTotalQuantity = transGroup.Where(t => t.Status == 1).Sum(t => t.Quantity), // Total Quantity for Status 1
-                        CompletedTotalQuantity = transGroup.Where(t => t.Status == 2).Sum(t => t.Quantity), // Total Quantity for Status 2
-                        InitialTotalQuantity = transGroup.Sum(t => t.Quantity), // Total Quantity across all statuses
-                        RemainingQuantity = transGroup.Sum(t => t.Quantity) - (transGroup.Where(t => t.Status == 1).Sum(t => t.Quantity) + transGroup.Where(t => t.Status == 2).Sum(t => t.Quantity)), // Remaining Quantity
-                        TotalCatchNo = transGroup.Count(t => !string.IsNullOrEmpty(t.CatchNo)),  // Count non-null CatchNo values
+                        WIPCount = transGroup.Count(t => t.Status == 1),
+                        CompletedCount = transGroup.Count(t => t.Status == 2),
+                        WIPTotalQuantity = transGroup.Where(t => t.Status == 1).Sum(t => t.Quantity),
+                        CompletedTotalQuantity = transGroup.Where(t => t.Status == 2).Sum(t => t.Quantity),
+                        InitialTotalQuantity = transGroup.Sum(t => t.Quantity),
+                        RemainingQuantity = transGroup.Sum(t => t.Quantity) -
+                                          (transGroup.Where(t => t.Status == 1).Sum(t => t.Quantity) +
+                                           transGroup.Where(t => t.Status == 2).Sum(t => t.Quantity)),
+                        TotalCatchNo = transGroup.Count(t => !string.IsNullOrEmpty(t.CatchNo)),
                         RemainingCatchNo = transGroup.Count(t => !string.IsNullOrEmpty(t.CatchNo))
                             - transGroup.Where(t => t.Status == 1).Count(t => !string.IsNullOrEmpty(t.CatchNo))
-                            - transGroup.Where(t => t.Status == 2).Count(t => !string.IsNullOrEmpty(t.CatchNo)), // Remaining CatchNo count
+                            - transGroup.Where(t => t.Status == 2).Count(t => !string.IsNullOrEmpty(t.CatchNo)),
                     })
                 .ToList();
+        }
 
-            // Step 6: Ensure counts are 0 for processes with no transactions
+        private List<ProcessCalculationResult> FinalizeProcessCounts(
+            List<ProcessCalculationResult> processCounts,
+            List<dynamic> processSequence)
+        {
             var finalizedProcessCounts = processCounts.Select(p => new ProcessCalculationResult
             {
                 ProcessId = p.ProcessId,
@@ -1698,137 +1805,753 @@ namespace ERPAPI.Controllers
                 ProcessName = p.ProcessName,
                 ProcessType = p.ProcessType,
                 RangeStart = p.RangeStart,
-                WIPCount = p.WIPCount > 0 ? p.WIPCount : 0,
-                CompletedCount = p.CompletedCount > 0 ? p.CompletedCount : 0,
-                WIPTotalQuantity = p.WIPTotalQuantity > 0 ? p.WIPTotalQuantity : 0,
-                CompletedTotalQuantity = p.CompletedTotalQuantity > 0 ? p.CompletedTotalQuantity : 0,
-                InitialTotalQuantity = p.InitialTotalQuantity > 0 ? p.InitialTotalQuantity : 0,
-                RemainingQuantity = p.RemainingQuantity > 0 ? p.RemainingQuantity : 0,
-                TotalCatchNo = p.TotalCatchNo > 0 ? p.TotalCatchNo : 0,
-                RemainingCatchNo = p.RemainingCatchNo > 0 ? p.RemainingCatchNo : 0
+                WIPCount = Math.Max(p.WIPCount, 0),
+                CompletedCount = Math.Max(p.CompletedCount, 0),
+                WIPTotalQuantity = Math.Max(p.WIPTotalQuantity, 0),
+                CompletedTotalQuantity = Math.Max(p.CompletedTotalQuantity, 0),
+                InitialTotalQuantity = Math.Max(p.InitialTotalQuantity, 0),
+                RemainingQuantity = Math.Max(p.RemainingQuantity, 0),
+                TotalCatchNo = Math.Max(p.TotalCatchNo, 0),
+                RemainingCatchNo = Math.Max(p.RemainingCatchNo, 0)
             })
-           .OrderBy(p => processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence ?? int.MaxValue)
+            .OrderBy(p => processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence ?? int.MaxValue)
             .ToList();
 
-            // Step 7: Adjust RemainingQuantity and TotalQuantity based on specific rules
-            for (int i = 1; i < finalizedProcessCounts.Count; i++)
+            return finalizedProcessCounts;
+        }
+
+        private void LogFinalizedProcessCounts(List<ProcessCalculationResult> finalizedProcessCounts)
+        {
+            foreach (var process in finalizedProcessCounts)
+            {
+                Console.WriteLine($"ProcessId: {process.ProcessId}, WIPCount: {process.WIPCount}, " +
+                                 $"CompletedCount: {process.CompletedCount}, WIPTotalQuantity: {process.WIPTotalQuantity}, " +
+                                 $"CompletedTotalQuantity: {process.CompletedTotalQuantity}, " +
+                                 $"InitialTotalQuantity: {process.InitialTotalQuantity}, " +
+                                 $"RemainingQuantity: {process.RemainingQuantity}, TotalCatchNo: {process.TotalCatchNo}, " +
+                                 $"RemainingCatchNo: {process.RemainingCatchNo}");
+            }
+        }
+
+        private async Task AdjustProcessQuantities(
+            List<ProcessCalculationResult> finalizedProcessCounts,
+            List<dynamic> processSequence,
+            List<dynamic> independentProcesses,
+            dynamic cuttingSequence,
+            int type,
+            int? numberOfSeries,
+            (int sumOfQuantities, int countOfCatches) ctpMetrics,
+            (int sumOfQuantities, int countOfCatches) digitalMetrics,
+            List<dynamic> mssReceived)
+        {
+            for (int i = 0; i < finalizedProcessCounts.Count; i++)
             {
                 var currentProcess = finalizedProcessCounts[i];
+                Console.WriteLine("Current Process: " + currentProcess.ProcessId);
+
                 ProcessCalculationResult previousProcess = null;
 
-                // If ProcessId is 4, set previous process to ProcessId 2
-                if (currentProcess.ProcessId == 4)
+                // Handle independent processes
+                var independentProcess = independentProcesses.FirstOrDefault(p => p.RangeEnd == currentProcess.ProcessId);
+                if (independentProcess != null)
                 {
-                    previousProcess = finalizedProcessCounts.FirstOrDefault(p => p.ProcessId == 2);
+                    previousProcess = HandleIndependentProcess(
+                        finalizedProcessCounts,
+                        processSequence,
+                        currentProcess,
+                        independentProcess);
                 }
-                // If ProcessId is 3, set previous process to the one with sequence 1
-                else if (currentProcess.ProcessId == 3)
+                else
                 {
-                    currentProcess.InitialTotalQuantity = sumOfQuantitiesInDigital;
-                    currentProcess.TotalCatchNo = CountofCatchesInDigital;
-                    currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity - currentProcess.WIPTotalQuantity - currentProcess.CompletedTotalQuantity;
-                    currentProcess.RemainingCatchNo = currentProcess.TotalCatchNo - currentProcess.WIPCount - currentProcess.CompletedCount;
+                    Console.WriteLine("No Independent Process found for Current Process: " + currentProcess.ProcessId);
                 }
-                else if (currentProcess.ProcessId == 1)
+
+                // Handle specific process types
+                switch (currentProcess.ProcessId)
                 {
-                    currentProcess.InitialTotalQuantity = sumOfQuantitiesInCTP;
-                    currentProcess.TotalCatchNo = CountofCatchesInCTP;
-                    currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity - currentProcess.WIPTotalQuantity - currentProcess.CompletedTotalQuantity;
-                    currentProcess.RemainingCatchNo = currentProcess.TotalCatchNo - currentProcess.WIPCount - currentProcess.CompletedCount;
+                    case 4:
+                        previousProcess = finalizedProcessCounts.FirstOrDefault(p => p.ProcessId == 2);
+                        break;
+                    case 3:
+                        HandleDigitalProcess(currentProcess, digitalMetrics);
+                        break;
+                    case 1:
+                        HandleCTPProcess(currentProcess, ctpMetrics);
+                        break;
+                    case 23:
+                        HandleMSSProcess(currentProcess, mssReceived);
+                        break;
+                    case 24:
+                        HandleQCProcess(currentProcess, mssReceived);
+                        break;
+                    default:
+                        previousProcess = HandleDefaultProcess(
+                            finalizedProcessCounts,
+                            processSequence,
+                            currentProcess,
+                            cuttingSequence,
+                            type,
+                            numberOfSeries,
+                            digitalMetrics);
+                        break;
                 }
-                else if (currentProcess.ProcessSequence == cuttingsequence.Sequence + 1 && type == 1)
+
+                // Apply final adjustments based on business rules
+                ApplyFinalAdjustments(
+                    currentProcess,
+                    previousProcess,
+                    cuttingSequence,
+                    type,
+                    numberOfSeries);
+            }
+        }
+
+        private ProcessCalculationResult HandleIndependentProcess(
+            List<ProcessCalculationResult> finalizedProcessCounts,
+            List<dynamic> processSequence,
+            ProcessCalculationResult currentProcess,
+            dynamic independentProcess)
+        {
+            Console.WriteLine("Independent Process: " + independentProcess.RangeEnd + ", Current Process: " + currentProcess.ProcessId);
+
+            if (independentProcess.RangeEnd == currentProcess.ProcessId)
+            {
+                Console.WriteLine("Going in Independent" + (independentProcess.RangeEnd) + (currentProcess.ProcessId));
+
+                var independentProcessResult = finalizedProcessCounts.FirstOrDefault(p => p.ProcessId == independentProcess.Id);
+
+                var previousProcess = finalizedProcessCounts.FirstOrDefault(p =>
+                    processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence ==
+                    processSequence.FirstOrDefault(seq => seq.ProcessId == currentProcess.ProcessId)?.Sequence - 1);
+
+                previousProcess = finalizedProcessCounts.FirstOrDefault(p =>
+                    processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence == currentProcess.ProcessSequence - 1);
+
+                // Find dependent process
+                while (previousProcess != null && previousProcess.ProcessType != "Dependent")
                 {
+                    Console.WriteLine("Current Process: " + currentProcess.ProcessId + ", Previous Process: " + previousProcess.ProcessId);
                     previousProcess = finalizedProcessCounts.FirstOrDefault(p =>
-                processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence ==
-                processSequence.FirstOrDefault(seq => seq.ProcessId == currentProcess.ProcessId)?.Sequence - 1);
-                    if (previousProcess == null)
+                        processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence == previousProcess.ProcessSequence - 1);
+                }
+
+                if (previousProcess != null && previousProcess.ProcessType == "Dependent")
+                {
+                    Console.WriteLine("[DEBUG] Found Dependent Process: " + previousProcess.ProcessId + ", " + currentProcess.ProcessId);
+                }
+
+                if (independentProcessResult != null && previousProcess != null)
+                {
+                    if (independentProcessResult.CompletedCount < previousProcess.CompletedCount)
                     {
-                        // Handle the case where previousProcess is null, possibly by skipping or using default values
-                        continue;
+                        previousProcess = independentProcessResult;
+                        Console.WriteLine("Selected process from RangeEnd as previous process.");
                     }
-
-                    var digitalprintingcompleted = (finalizedProcessCounts.FirstOrDefault(p => p.ProcessId == 3).CompletedTotalQuantity);
-                    var digitalcatchCompleted = finalizedProcessCounts.FirstOrDefault(p => p.ProcessId == 3).CompletedCount;
-                    currentProcess.InitialTotalQuantity = (digitalprintingcompleted / 4 + previousProcess.CompletedTotalQuantity / 4);
-                    currentProcess.CompletedTotalQuantity /= (noofseries ?? 1);
-                    currentProcess.WIPTotalQuantity /= (noofseries ?? 1);
-                    currentProcess.CompletedCount /= (noofseries ?? 1);
-                    currentProcess.WIPCount /= (noofseries ?? 1);
-                    currentProcess.TotalCatchNo = (previousProcess.TotalCatchNo / 4 + digitalcatchCompleted / 4);
-                    currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity - currentProcess.WIPTotalQuantity - currentProcess.CompletedTotalQuantity;
-                    currentProcess.RemainingCatchNo = currentProcess.TotalCatchNo - currentProcess.WIPCount - currentProcess.CompletedCount;
-                }
-
-                else if (currentProcess.ProcessSequence == cuttingsequence.Sequence + 1)
-                {
-                    Console.WriteLine("Going in that" + (currentProcess.ProcessId));
-                    previousProcess = finalizedProcessCounts.FirstOrDefault(p =>
-               processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence ==
-               processSequence.FirstOrDefault(seq => seq.ProcessId == currentProcess.ProcessId)?.Sequence - 1);
-
-                    var digitalprintingcompleted = finalizedProcessCounts.FirstOrDefault(p => p.ProcessId == 3).CompletedTotalQuantity;
-                    var digitalcatchCompleted = finalizedProcessCounts.FirstOrDefault(p => p.ProcessId == 3).CompletedCount;
-                    currentProcess.InitialTotalQuantity = digitalprintingcompleted + previousProcess.CompletedTotalQuantity;
-                    currentProcess.TotalCatchNo = previousProcess.TotalCatchNo + digitalcatchCompleted;
-                    currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity - currentProcess.WIPTotalQuantity - currentProcess.CompletedTotalQuantity;
-                    currentProcess.RemainingCatchNo = currentProcess.TotalCatchNo - currentProcess.WIPCount - currentProcess.CompletedCount;
-                }
-                else if (currentProcess.ProcessType == "Independent")
-                {
-                    // For other processes, set the previous process based on sequence
-                    previousProcess = finalizedProcessCounts.FirstOrDefault(p =>
-              processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence == currentProcess.RangeStart);
-
-                }
-
-                else
-                {
-                    // For other processes, set the previous process based on sequence
-                    previousProcess = finalizedProcessCounts.FirstOrDefault(p =>
-                processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence ==
-                processSequence.FirstOrDefault(seq => seq.ProcessId == currentProcess.ProcessId)?.Sequence - 1);
-
-                }
-
-                // Only adjust if previous process is found
-                if (previousProcess != null && !(currentProcess.ProcessSequence == cuttingsequence.Sequence + 1) && type != 1)
-                {
-
-                    currentProcess.InitialTotalQuantity = previousProcess.CompletedTotalQuantity;
-                    currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity - currentProcess.WIPTotalQuantity - currentProcess.CompletedTotalQuantity;
-                    currentProcess.RemainingCatchNo = previousProcess.CompletedCount - currentProcess.WIPCount - currentProcess.CompletedCount;
-                    currentProcess.TotalCatchNo = previousProcess.CompletedCount;
-                }
-                else if ((type == 1 && previousProcess != null) && !(currentProcess.ProcessSequence == cuttingsequence.Sequence + 1 && type == 1) && currentProcess.ProcessSequence > cuttingsequence.Sequence + 1)
-                {
-                    Console.WriteLine("Current Process" + (currentProcess.ProcessId));
-                    Console.WriteLine("Previous Process" + (previousProcess.ProcessId));
-                    currentProcess.InitialTotalQuantity = previousProcess.CompletedTotalQuantity;
-                    currentProcess.CompletedTotalQuantity /= (noofseries ?? 1);
-                    currentProcess.WIPTotalQuantity /= (noofseries ?? 1);
-                    currentProcess.CompletedCount /= (noofseries ?? 1);
-                    currentProcess.WIPCount /= (noofseries ?? 1);
-                    // Console.WriteLine("Current Process" + (currentProcess.CompletedTotalQuantity));
-                    currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity - currentProcess.WIPTotalQuantity - currentProcess.CompletedTotalQuantity;
-                    currentProcess.RemainingCatchNo = previousProcess.CompletedCount - currentProcess.WIPCount - currentProcess.CompletedCount;
-                    currentProcess.TotalCatchNo = previousProcess.CompletedCount;
-                    //Console.WriteLine("Current Process" + (currentProcess.TotalCatchNo));
-
-                }
-                else if ((type == 1 && previousProcess != null) && !(currentProcess.ProcessSequence == cuttingsequence.Sequence + 1 && type == 1) && currentProcess.ProcessSequence < cuttingsequence.Sequence + 1)
-                {
-                    currentProcess.InitialTotalQuantity = previousProcess.CompletedTotalQuantity;
-                    currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity - currentProcess.WIPTotalQuantity - currentProcess.CompletedTotalQuantity;
-                    currentProcess.RemainingCatchNo = previousProcess.CompletedCount - currentProcess.WIPCount - currentProcess.CompletedCount;
-                    currentProcess.TotalCatchNo = previousProcess.CompletedCount;
+                    else
+                    {
+                        Console.WriteLine("Selected process from while loop as previous process.");
+                    }
                 }
                 else
                 {
+                    Console.WriteLine("[DEBUG] No Dependent Process found, possibly reached the start.");
                 }
+
+                return previousProcess;
             }
 
-            return Ok(finalizedProcessCounts);
+            return null;
         }
+
+        private void HandleDigitalProcess(
+            ProcessCalculationResult currentProcess,
+            (int sumOfQuantities, int countOfCatches) digitalMetrics)
+        {
+            currentProcess.InitialTotalQuantity = digitalMetrics.sumOfQuantities;
+            currentProcess.TotalCatchNo = digitalMetrics.countOfCatches;
+            currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity -
+                                              currentProcess.WIPTotalQuantity -
+                                              currentProcess.CompletedTotalQuantity;
+            currentProcess.RemainingCatchNo = currentProcess.TotalCatchNo -
+                                             currentProcess.WIPCount -
+                                             currentProcess.CompletedCount;
+        }
+
+        private void HandleCTPProcess(
+            ProcessCalculationResult currentProcess,
+            (int sumOfQuantities, int countOfCatches) ctpMetrics)
+        {
+            currentProcess.InitialTotalQuantity = ctpMetrics.sumOfQuantities;
+            currentProcess.TotalCatchNo = ctpMetrics.countOfCatches;
+            currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity -
+                                              currentProcess.WIPTotalQuantity -
+                                              currentProcess.CompletedTotalQuantity;
+            currentProcess.RemainingCatchNo = currentProcess.TotalCatchNo -
+                                             currentProcess.WIPCount -
+                                             currentProcess.CompletedCount;
+        }
+
+        private void HandleMSSProcess(ProcessCalculationResult currentProcess, List<dynamic> mssReceived)
+        {
+            Console.WriteLine("Going in MSS" + (currentProcess.ProcessId));
+
+            currentProcess.InitialTotalQuantity = Convert.ToInt32(mssReceived
+                .Where(q => q.ProcessId.Contains(currentProcess.ProcessId) && q.MSSStatus >= 1)
+                .Sum(q => (double)q.Quantity));
+            Console.WriteLine("Initial Total Quantity: " + currentProcess.InitialTotalQuantity);
+
+            currentProcess.TotalCatchNo = mssReceived.Count(q => q.ProcessId.Contains(currentProcess.ProcessId) && q.MSSStatus >= 1);
+            Console.WriteLine("Total Catch No: " + currentProcess.TotalCatchNo);
+
+            currentProcess.CompletedCount = mssReceived.Count(q => q.ProcessId.Contains(currentProcess.ProcessId) && q.MSSStatus >= 2);
+            Console.WriteLine("Completed Count: " + currentProcess.CompletedCount);
+
+            currentProcess.CompletedTotalQuantity = Convert.ToInt32(mssReceived
+                .Where(q => q.ProcessId.Contains(currentProcess.ProcessId) && q.MSSStatus >= 2)
+                .Sum(q => (double)q.Quantity));
+            Console.WriteLine("Completed Total Quantity: " + currentProcess.CompletedTotalQuantity);
+
+            currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity - currentProcess.CompletedTotalQuantity;
+            Console.WriteLine("Remaining Quantity: " + currentProcess.RemainingQuantity);
+
+            currentProcess.RemainingCatchNo = currentProcess.TotalCatchNo - currentProcess.CompletedCount;
+            Console.WriteLine("Remaining Catch No: " + currentProcess.RemainingCatchNo);
+        }
+
+        private void HandleQCProcess(ProcessCalculationResult currentProcess, List<dynamic> mssReceived)
+        {
+            Console.WriteLine("Going in QC 24" + (currentProcess.ProcessId));
+
+            currentProcess.InitialTotalQuantity = Convert.ToInt32(mssReceived
+                .Where(q => q.ProcessId.Contains(currentProcess.ProcessId) && q.MSSStatus >= 1)
+                .Sum(q => (double)q.Quantity));
+
+            currentProcess.TotalCatchNo = mssReceived.Count(q => q.ProcessId.Contains(currentProcess.ProcessId) && q.MSSStatus >= 1);
+
+            currentProcess.CompletedCount = mssReceived.Count(q => q.ProcessId.Contains(currentProcess.ProcessId) && q.MSSStatus == 3);
+
+            currentProcess.CompletedTotalQuantity = Convert.ToInt32(mssReceived
+                .Where(q => q.ProcessId.Contains(currentProcess.ProcessId) && q.MSSStatus == 3)
+                .Sum(q => (double)q.Quantity));
+
+            currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity - currentProcess.CompletedTotalQuantity;
+            currentProcess.RemainingCatchNo = currentProcess.TotalCatchNo - currentProcess.CompletedCount;
+        }
+
+        private ProcessCalculationResult HandleDefaultProcess(
+            List<ProcessCalculationResult> finalizedProcessCounts,
+            List<dynamic> processSequence,
+            ProcessCalculationResult currentProcess,
+            dynamic cuttingSequence,
+            int type,
+            int? numberOfSeries,
+            (int sumOfQuantities, int countOfCatches) digitalMetrics)
+        {
+            ProcessCalculationResult previousProcess = null;
+
+            if (currentProcess.ProcessSequence == cuttingSequence.Sequence + 1 && type == 1)
+            {
+                Console.WriteLine("Going in this block" + (currentProcess.ProcessId));
+                previousProcess = GetPreviousProcessBySequence(finalizedProcessCounts, processSequence, currentProcess);
+
+                if (previousProcess == null) return null;
+
+                var digitalPrintingCompleted = finalizedProcessCounts.FirstOrDefault(p => p.ProcessId == 3)?.CompletedTotalQuantity ?? 0;
+                var digitalCatchCompleted = finalizedProcessCounts.FirstOrDefault(p => p.ProcessId == 3)?.CompletedCount ?? 0;
+
+                currentProcess.InitialTotalQuantity = (digitalPrintingCompleted / 4 + previousProcess.CompletedTotalQuantity / 4);
+                currentProcess.CompletedTotalQuantity /= (numberOfSeries ?? 1);
+                currentProcess.WIPTotalQuantity /= (numberOfSeries ?? 1);
+                currentProcess.CompletedCount /= (numberOfSeries ?? 1);
+                currentProcess.WIPCount /= (numberOfSeries ?? 1);
+                currentProcess.TotalCatchNo = (previousProcess.TotalCatchNo / 4 + digitalCatchCompleted / 4);
+                currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity -
+                                                  currentProcess.WIPTotalQuantity -
+                                                  currentProcess.CompletedTotalQuantity;
+                currentProcess.RemainingCatchNo = currentProcess.TotalCatchNo -
+                                                 currentProcess.WIPCount -
+                                                 currentProcess.CompletedCount;
+            }
+            else if (currentProcess.ProcessSequence == cuttingSequence.Sequence + 1)
+            {
+                Console.WriteLine("Going in another block" + (currentProcess.ProcessId));
+                previousProcess = GetPreviousProcessBySequence(finalizedProcessCounts, processSequence, currentProcess);
+
+                var digitalPrintingCompleted = finalizedProcessCounts.FirstOrDefault(p => p.ProcessId == 3)?.CompletedTotalQuantity ?? 0;
+                var digitalCatchCompleted = finalizedProcessCounts.FirstOrDefault(p => p.ProcessId == 3)?.CompletedCount ?? 0;
+
+                currentProcess.InitialTotalQuantity = digitalPrintingCompleted + previousProcess.CompletedTotalQuantity;
+                currentProcess.TotalCatchNo = previousProcess.TotalCatchNo + digitalCatchCompleted;
+                currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity -
+                                                  currentProcess.WIPTotalQuantity -
+                                                  currentProcess.CompletedTotalQuantity;
+                currentProcess.RemainingCatchNo = currentProcess.TotalCatchNo -
+                                                 currentProcess.WIPCount -
+                                                 currentProcess.CompletedCount;
+            }
+            else if (currentProcess.ProcessType == "Independent")
+            {
+                Console.WriteLine("Going in Independent Process" + (currentProcess.ProcessId));
+                previousProcess = finalizedProcessCounts.FirstOrDefault(p =>
+                    processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence == currentProcess.RangeStart);
+            }
+            else
+            {
+                Console.WriteLine("Going in else" + (currentProcess.ProcessId));
+                previousProcess = GetPreviousProcessBySequence(finalizedProcessCounts, processSequence, currentProcess);
+            }
+
+            return previousProcess;
+        }
+
+        private ProcessCalculationResult GetPreviousProcessBySequence(
+            List<ProcessCalculationResult> finalizedProcessCounts,
+            List<dynamic> processSequence,
+            ProcessCalculationResult currentProcess)
+        {
+            return finalizedProcessCounts.FirstOrDefault(p =>
+                processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence ==
+                processSequence.FirstOrDefault(seq => seq.ProcessId == currentProcess.ProcessId)?.Sequence - 1);
+        }
+
+        private void ApplyFinalAdjustments(
+            ProcessCalculationResult currentProcess,
+            ProcessCalculationResult previousProcess,
+            dynamic cuttingSequence,
+            int type,
+            int? numberOfSeries)
+        {
+            if (previousProcess != null && !(currentProcess.ProcessSequence == cuttingSequence.Sequence + 1) && type != 1)
+            {
+                Console.WriteLine("Current Process in last third block" + (currentProcess.ProcessId));
+                ApplyStandardAdjustment(currentProcess, previousProcess);
+            }
+            else if ((type == 1 && previousProcess != null) &&
+                     !(currentProcess.ProcessSequence == cuttingSequence.Sequence + 1 && type == 1) &&
+                     currentProcess.ProcessSequence > cuttingSequence.Sequence + 1)
+            {
+                Console.WriteLine("Current Process in second last" + (currentProcess.ProcessId));
+                Console.WriteLine("Previous Process in second last" + (previousProcess.ProcessId));
+                ApplySeriesAdjustment(currentProcess, previousProcess, numberOfSeries);
+            }
+            else if ((type == 1 && previousProcess != null) &&
+                     !(currentProcess.ProcessSequence == cuttingSequence.Sequence + 1 && type == 1) &&
+                     currentProcess.ProcessSequence < cuttingSequence.Sequence + 1)
+            {
+                Console.WriteLine("Current Process in last block" + (currentProcess.ProcessId));
+                ApplyStandardAdjustment(currentProcess, previousProcess);
+            }
+        }
+
+        private void ApplyStandardAdjustment(ProcessCalculationResult currentProcess, ProcessCalculationResult previousProcess)
+        {
+            currentProcess.InitialTotalQuantity = previousProcess.CompletedTotalQuantity;
+            currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity -
+                                              currentProcess.WIPTotalQuantity -
+                                              currentProcess.CompletedTotalQuantity;
+            currentProcess.RemainingCatchNo = previousProcess.CompletedCount -
+                                             currentProcess.WIPCount -
+                                             currentProcess.CompletedCount;
+            currentProcess.TotalCatchNo = previousProcess.CompletedCount;
+        }
+
+        private void ApplySeriesAdjustment(ProcessCalculationResult currentProcess, ProcessCalculationResult previousProcess, int? numberOfSeries)
+        {
+            currentProcess.InitialTotalQuantity = previousProcess.CompletedTotalQuantity;
+            currentProcess.CompletedTotalQuantity /= (numberOfSeries ?? 1);
+            currentProcess.WIPTotalQuantity /= (numberOfSeries ?? 1);
+            currentProcess.CompletedCount /= (numberOfSeries ?? 1);
+            currentProcess.WIPCount /= (numberOfSeries ?? 1);
+            currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity -
+                                              currentProcess.WIPTotalQuantity -
+                                              currentProcess.CompletedTotalQuantity;
+            currentProcess.RemainingCatchNo = previousProcess.CompletedCount -
+                                             currentProcess.WIPCount -
+                                             currentProcess.CompletedCount;
+            currentProcess.TotalCatchNo = previousProcess.CompletedCount;
+        }
+
+     
+
+        /* [HttpGet("Process-Train")]
+         public async Task<ActionResult> GetProcessCalculation(int projectId, int LotNo)
+         {
+             // Step 1: Get the process sequence for the given projectId from the ProjectProcess table
+             var processSequence = await _context.ProjectProcesses
+                 .Where(pp => pp.ProjectId == projectId)
+                 .OrderBy(pp => pp.Sequence) // Assuming 'Sequence' field determines the order
+                 .Select(pp => new { pp.ProcessId, pp.Sequence })
+                 .ToListAsync();
+             foreach (var p in processSequence)
+             {
+                 Console.WriteLine(p); //15,1,2,3,4,
+             }
+
+
+             var cuttingsequence = processSequence.Where(p => p.ProcessId == 4).FirstOrDefault();
+             if (cuttingsequence == null)
+             {
+                 cuttingsequence = processSequence.Where(p => p.ProcessId == 3).FirstOrDefault();
+             }
+             else
+             {
+                 Console.WriteLine($"Found cutting sequence with ProcessId: {cuttingsequence.ProcessId}");
+             }
+
+             var process1 = processSequence.FirstOrDefault();
+             Console.WriteLine("Found 1st Process" + process1); //15,1,2,3,4,
+             var project = await _context.Projects
+                 .Where(p => p.ProjectId == projectId)
+                 .Select(p => new { p.TypeId, p.NoOfSeries })
+                 .FirstOrDefaultAsync();
+
+             var type = project.TypeId;
+             Console.WriteLine(type); //1
+             var noofseries = project.NoOfSeries;
+             Console.WriteLine(noofseries); //4
+
+
+             var independentprocesses = await _context.Processes
+                 .Where(p => p.ProcessType == "Independent")
+                 .Select(p => new { p.Id, p.RangeEnd })
+                 .ToListAsync();
+
+             foreach (var p in independentprocesses)
+             {
+                 Console.WriteLine("Independent process" + p); //15,1,2,3,4,
+             }
+
+
+
+             var transactionDetails = await (from t in _context.Transaction
+                                             join q in _context.QuantitySheets on t.QuantitysheetId equals q.QuantitySheetId
+                                             where t.ProjectId == projectId && t.LotNo == LotNo && t.ProcessId == process1.ProcessId && t.Status == 2
+                                             select new
+                                             {
+                                                 t.TransactionId,
+                                                 t.ProjectId,
+                                                 t.QuantitysheetId,
+                                                 q.ProcessId,
+                                                 t.ZoneId,
+                                                 t.MachineId,
+                                                 t.Status,
+                                                 t.AlarmId,
+                                                 t.LotNo,
+                                                 t.TeamId,
+                                                 q.Quantity,
+                                             }).ToListAsync();
+
+             foreach (var t in transactionDetails)
+             {
+                 Console.WriteLine($"TransactionId: {t.TransactionId}, Quantity: {t.Quantity}, ProcessId: {string.Join(",", t.ProcessId)}");
+             }
+
+             var transactionsinCTP = transactionDetails.Where(t => t.ProcessId.Contains(1)).ToList();
+             var sumOfQuantitiesInCTP = transactionsinCTP.Sum(t => t.Quantity);
+             var transactionsinDigital = transactionDetails.Where(t => t.ProcessId.Contains(3)).ToList();
+             var sumOfQuantitiesInDigital = transactionsinDigital.Sum(t => t.Quantity);
+             var CountofCatchesInCTP = transactionsinCTP.Count();
+             var CountofCatchesInDigital = transactionsinDigital.Count();
+             foreach (var tctp in transactionsinDigital)
+             {
+                 string processIds = string.Join(",", tctp.ProcessId);
+
+             }
+
+             // Step 3: Get all processes related to the project
+             var allProcesses = await _context.ProjectProcesses
+                 .Where(pp => pp.ProjectId == projectId)
+                 .Join(_context.Processes,
+                       pp => pp.ProcessId,
+                       p => p.Id,
+                       (pp, p) => new { pp.ProcessId, p.Name, p.ProcessType, pp.Sequence, p.RangeStart })
+                 .ToListAsync();
+
+             // Step 4: Retrieve transactions and perform a LEFT JOIN with allProcesses
+             var transactions = await _context.Transaction
+                 .Where(t => t.ProjectId == projectId && t.LotNo == LotNo)
+                 .Join(_context.QuantitySheets,
+                       t => t.QuantitysheetId,
+                       q => q.QuantitySheetId,
+                       (t, q) => new { t.ProcessId, t.Status, q.Quantity, q.CatchNo })
+                 .ToListAsync();
+             var mssreceived = await _context.QuantitySheets
+                 .Where(q => q.ProjectId == projectId && q.MSSStatus > 0 && q.LotNo == LotNo.ToString())
+                 .Select(q => new { q.QuantitySheetId, q.ProcessId, q.Quantity, q.CatchNo, q.MSSStatus })
+                 .ToListAsync();
+
+             // Step 5: Combine allProcesses with transactions using a LEFT JOIN in-memory
+             var processCounts = allProcesses
+                 .GroupJoin(transactions,
+                     process => process.ProcessId,
+                     transaction => transaction.ProcessId,
+                     (process, transGroup) => new ProcessCalculationResult
+                     {
+                         ProcessId = process.ProcessId,
+                         ProcessName = process.Name,
+                         ProcessType = process.ProcessType,
+                         WIPCount = transGroup.Count(t => t.Status == 1), // Count for Status 1
+                         CompletedCount = transGroup.Count(t => t.Status == 2), // Count for Status 2
+                         WIPTotalQuantity = transGroup.Where(t => t.Status == 1).Sum(t => t.Quantity), // Total Quantity for Status 1
+                         CompletedTotalQuantity = transGroup.Where(t => t.Status == 2).Sum(t => t.Quantity), // Total Quantity for Status 2
+                         InitialTotalQuantity = transGroup.Sum(t => t.Quantity), // Total Quantity across all statuses
+                         RemainingQuantity = transGroup.Sum(t => t.Quantity) - (transGroup.Where(t => t.Status == 1).Sum(t => t.Quantity) + transGroup.Where(t => t.Status == 2).Sum(t => t.Quantity)), // Remaining Quantity
+                         TotalCatchNo = transGroup.Count(t => !string.IsNullOrEmpty(t.CatchNo)),  // Count non-null CatchNo values
+                         RemainingCatchNo = transGroup.Count(t => !string.IsNullOrEmpty(t.CatchNo))
+                             - transGroup.Where(t => t.Status == 1).Count(t => !string.IsNullOrEmpty(t.CatchNo))
+                             - transGroup.Where(t => t.Status == 2).Count(t => !string.IsNullOrEmpty(t.CatchNo)), // Remaining CatchNo count
+                     })
+                 .ToList();
+
+             // Step 6: Ensure counts are 0 for processes with no transactions
+             var finalizedProcessCounts = processCounts.Select(p => new ProcessCalculationResult
+             {
+                 ProcessId = p.ProcessId,
+                 ProcessSequence = processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence ?? 0,
+                 ProcessName = p.ProcessName,
+                 ProcessType = p.ProcessType,
+                 RangeStart = p.RangeStart,
+                 WIPCount = p.WIPCount > 0 ? p.WIPCount : 0,
+                 CompletedCount = p.CompletedCount > 0 ? p.CompletedCount : 0,
+                 WIPTotalQuantity = p.WIPTotalQuantity > 0 ? p.WIPTotalQuantity : 0,
+                 CompletedTotalQuantity = p.CompletedTotalQuantity > 0 ? p.CompletedTotalQuantity : 0,
+                 InitialTotalQuantity = p.InitialTotalQuantity > 0 ? p.InitialTotalQuantity : 0,
+                 RemainingQuantity = p.RemainingQuantity > 0 ? p.RemainingQuantity : 0,
+                 TotalCatchNo = p.TotalCatchNo > 0 ? p.TotalCatchNo : 0,
+                 RemainingCatchNo = p.RemainingCatchNo > 0 ? p.RemainingCatchNo : 0
+             })
+            .OrderBy(p => processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence ?? int.MaxValue)
+             .ToList();
+
+             foreach(var process in finalizedProcessCounts)
+             {
+                 Console.WriteLine($"ProcessId: {process.ProcessId}, WIPCount: {process.WIPCount}, CompletedCount: {process.CompletedCount}, WIPTotalQuantity: {process.WIPTotalQuantity}, CompletedTotalQuantity: {process.CompletedTotalQuantity}, InitialTotalQuantity: {process.InitialTotalQuantity}, RemainingQuantity: {process.RemainingQuantity}, TotalCatchNo: {process.TotalCatchNo}, RemainingCatchNo: {process.RemainingCatchNo}");
+             }
+
+             // Step 7: Adjust RemainingQuantity and TotalQuantity based on specific rules
+             for (int i = 0; i < finalizedProcessCounts.Count; i++)
+             {
+                 var currentProcess = finalizedProcessCounts[i];
+                 Console.WriteLine("Current Process: " + currentProcess.ProcessId);
+                 ProcessCalculationResult previousProcess = null;
+                 var independentProcess = independentprocesses.FirstOrDefault(p => p.RangeEnd == currentProcess.ProcessId);
+                 if (independentProcess != null)
+                 {
+                     Console.WriteLine("Independent Process: " + independentProcess.RangeEnd + ", Current Process: " + currentProcess.ProcessId);
+
+                     // Now you can safely access independentProcess.RangeEnd
+                     if (independentProcess.RangeEnd == currentProcess.ProcessId)
+                     {
+                         Console.WriteLine("Going in Independent" + (independentProcess.RangeEnd) + (currentProcess.ProcessId));
+
+
+                         var independentprocess = finalizedProcessCounts.FirstOrDefault(p => p.ProcessId == independentProcess.Id);
+
+                         previousProcess = finalizedProcessCounts.FirstOrDefault(p =>
+                         processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence ==
+                         processSequence.FirstOrDefault(seq => seq.ProcessId == currentProcess.ProcessId)?.Sequence - 1);
+
+
+                         // If no process with sequence 1 is found, continue with the previous logic to find a dependent process
+                         previousProcess = finalizedProcessCounts.FirstOrDefault(p =>
+                             processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence == currentProcess.ProcessSequence - 1);
+
+                         // Keep adjusting previousProcess by decrementing the ProcessSequence until ProcessType is "Dependent"
+                         while (previousProcess != null && previousProcess.ProcessType != "Dependent")
+                         {
+                             // Move to the previous process (decrement the ProcessSequence)
+                             Console.WriteLine("Current Process: " + currentProcess.ProcessId + ", Previous Process: " + previousProcess.ProcessId);
+                             previousProcess = finalizedProcessCounts.FirstOrDefault(p =>
+                                 processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence == previousProcess.ProcessSequence - 1);
+                         }
+
+                         // If we exit the loop and previousProcess is null or ProcessType is "Dependent"
+                         if (previousProcess != null && previousProcess.ProcessType == "Dependent")
+                         {
+                             // You found a dependent process, and previousProcess is set
+                             Console.WriteLine("[DEBUG] Found Dependent Process: " + previousProcess.ProcessId, + currentProcess.ProcessId);
+                         }
+
+                         if (independentprocess != null && previousProcess != null)
+                         {
+                             if (independentprocess.CompletedCount < previousProcess.CompletedCount)
+                             {
+                                 // Use processFromRangeEnd as previousProcess
+                                 previousProcess = independentprocess;
+                                 Console.WriteLine("Selected process from RangeEnd as previous process.");
+                             }
+                             else
+                             {
+                                 // Keep the previousProcess from the while loop
+                                 Console.WriteLine("Selected process from while loop as previous process.");
+                             }
+                         }
+
+                         else
+                         {
+                             // Handle case where no dependent process was found
+                             Console.WriteLine("[DEBUG] No Dependent Process found, possibly reached the start.");
+                         }
+                     }
+
+                 }
+                 else
+                 {
+                     Console.WriteLine("No Independent Process found for Current Process: " + currentProcess.ProcessId);
+                 }
+                 // If ProcessId is 4, set previous process to ProcessId 2
+                 if (currentProcess.ProcessId == 4)
+                 {
+                     previousProcess = finalizedProcessCounts.FirstOrDefault(p => p.ProcessId == 2);
+                 }
+                 // If ProcessId is 3, set previous process to the one with sequence 1
+                 else if (currentProcess.ProcessId == 3)
+                 {
+                     currentProcess.InitialTotalQuantity = sumOfQuantitiesInDigital;
+                     currentProcess.TotalCatchNo = CountofCatchesInDigital;
+                     currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity - currentProcess.WIPTotalQuantity - currentProcess.CompletedTotalQuantity;
+                     currentProcess.RemainingCatchNo = currentProcess.TotalCatchNo - currentProcess.WIPCount - currentProcess.CompletedCount;
+                 }
+                 else if (currentProcess.ProcessId == 1)
+                 {
+                     currentProcess.InitialTotalQuantity = sumOfQuantitiesInCTP;
+                     currentProcess.TotalCatchNo = CountofCatchesInCTP;
+                     currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity - currentProcess.WIPTotalQuantity - currentProcess.CompletedTotalQuantity;
+                     currentProcess.RemainingCatchNo = currentProcess.TotalCatchNo - currentProcess.WIPCount - currentProcess.CompletedCount;
+                 }
+                 else if (currentProcess.ProcessId == 23)
+                 {
+                     Console.WriteLine("Going in MSS" + (currentProcess.ProcessId));
+                     currentProcess.InitialTotalQuantity = mssreceived
+                         .Where(q => q.ProcessId.Contains(currentProcess.ProcessId) && q.MSSStatus >= 1)
+                         .Sum(q => q.Quantity);
+                     Console.WriteLine("Initial Total Quantity: " + currentProcess.InitialTotalQuantity);
+                     currentProcess.TotalCatchNo = mssreceived.Count(q => q.ProcessId.Contains(currentProcess.ProcessId) && q.MSSStatus >=1);
+                     Console.WriteLine("Total Catch No: " + currentProcess.TotalCatchNo);
+                     currentProcess.CompletedCount = mssreceived.Count(q => q.ProcessId.Contains(currentProcess.ProcessId) && q.MSSStatus >= 2);
+                     Console.WriteLine("Completed Count: " + currentProcess.CompletedCount);
+                     currentProcess.CompletedTotalQuantity = mssreceived
+                         .Where(q => q.ProcessId.Contains(currentProcess.ProcessId) && q.MSSStatus >= 2)
+                         .Sum(q => q.Quantity);
+                     Console.WriteLine("Completed Total Quantity: " + currentProcess.CompletedTotalQuantity);
+                     currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity - currentProcess.CompletedTotalQuantity;
+                     Console.WriteLine("Remaining Quantity: " + currentProcess.RemainingQuantity);
+                     currentProcess.RemainingCatchNo = currentProcess.TotalCatchNo - currentProcess.CompletedCount;
+                         Console.WriteLine("Remaining Catch No: " + currentProcess.RemainingCatchNo);
+
+                 }
+                 else if (currentProcess.ProcessId == 24)
+                 {
+                     Console.WriteLine("Going in QC 24" + (currentProcess.ProcessId));
+                     currentProcess.InitialTotalQuantity = mssreceived
+                         .Where(q => q.ProcessId.Contains(currentProcess.ProcessId) && q.MSSStatus >= 1)
+                         .Sum(q => q.Quantity);
+                     currentProcess.TotalCatchNo = mssreceived.Count(q => q.ProcessId.Contains(currentProcess.ProcessId) && q.MSSStatus >= 1);
+                     currentProcess.CompletedCount = mssreceived.Count(q => q.ProcessId.Contains(currentProcess.ProcessId) && q.MSSStatus == 3);
+                     currentProcess.CompletedTotalQuantity = mssreceived
+                         .Where(q => q.ProcessId.Contains(currentProcess.ProcessId) && q.MSSStatus == 3)
+                         .Sum(q => q.Quantity);
+                     currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity - currentProcess.CompletedTotalQuantity;
+                     currentProcess.RemainingCatchNo = currentProcess.TotalCatchNo - currentProcess.CompletedCount;
+                 }
+
+                 else if (currentProcess.ProcessSequence == cuttingsequence.Sequence + 1 && type == 1)
+                 {
+                     Console.WriteLine("Going in this block" + (currentProcess.ProcessId));
+                     previousProcess = finalizedProcessCounts.FirstOrDefault(p =>
+                 processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence ==
+                 processSequence.FirstOrDefault(seq => seq.ProcessId == currentProcess.ProcessId)?.Sequence - 1);
+                     if (previousProcess == null)
+                     {
+                         // Handle the case where previousProcess is null, possibly by skipping or using default values
+                         continue;
+                     }
+
+                     var digitalprintingcompleted = (finalizedProcessCounts.FirstOrDefault(p => p.ProcessId == 3)?.CompletedTotalQuantity??0);
+                     var digitalcatchCompleted = finalizedProcessCounts.FirstOrDefault(p => p.ProcessId == 3)?.CompletedCount??0;
+                     currentProcess.InitialTotalQuantity = (digitalprintingcompleted / 4 + previousProcess.CompletedTotalQuantity / 4);
+                     currentProcess.CompletedTotalQuantity /= (noofseries ?? 1);
+                     currentProcess.WIPTotalQuantity /= (noofseries ?? 1);
+                     currentProcess.CompletedCount /= (noofseries ?? 1);
+                     currentProcess.WIPCount /= (noofseries ?? 1);
+                     currentProcess.TotalCatchNo = (previousProcess.TotalCatchNo / 4 + digitalcatchCompleted / 4);
+                     currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity - currentProcess.WIPTotalQuantity - currentProcess.CompletedTotalQuantity;
+                     currentProcess.RemainingCatchNo = currentProcess.TotalCatchNo - currentProcess.WIPCount - currentProcess.CompletedCount;
+                 }
+
+                 else if (currentProcess.ProcessSequence == cuttingsequence.Sequence + 1)
+                 {
+                     Console.WriteLine("Going in another block" + (currentProcess.ProcessId));
+                     previousProcess = finalizedProcessCounts.FirstOrDefault(p =>
+                processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence ==
+                processSequence.FirstOrDefault(seq => seq.ProcessId == currentProcess.ProcessId)?.Sequence - 1);
+
+                     var digitalprintingcompleted = finalizedProcessCounts.FirstOrDefault(p => p.ProcessId == 3)?.CompletedTotalQuantity??0;
+                     var digitalcatchCompleted = finalizedProcessCounts.FirstOrDefault(p => p.ProcessId == 3)?.CompletedCount??0;
+                     currentProcess.InitialTotalQuantity = digitalprintingcompleted + previousProcess.CompletedTotalQuantity;
+                     currentProcess.TotalCatchNo = previousProcess.TotalCatchNo + digitalcatchCompleted;
+                     currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity - currentProcess.WIPTotalQuantity - currentProcess.CompletedTotalQuantity;
+                     currentProcess.RemainingCatchNo = currentProcess.TotalCatchNo - currentProcess.WIPCount - currentProcess.CompletedCount;
+                 }
+                 else if (currentProcess.ProcessType == "Independent")
+                 {
+                     Console.WriteLine("Going in Independent Process" + (currentProcess.ProcessId));
+                     // For other processes, set the previous process based on sequence
+                     previousProcess = finalizedProcessCounts.FirstOrDefault(p =>
+               processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence == currentProcess.RangeStart);
+
+                 }
+
+                 else
+                 {
+                     Console.WriteLine("Going in else" + (currentProcess.ProcessId));
+                     // For other processes, set the previous process based on sequence
+                     previousProcess = finalizedProcessCounts.FirstOrDefault(p =>
+                 processSequence.FirstOrDefault(seq => seq.ProcessId == p.ProcessId)?.Sequence ==
+                 processSequence.FirstOrDefault(seq => seq.ProcessId == currentProcess.ProcessId)?.Sequence - 1);
+
+                 }
+
+                 // Only adjust if previous process is found
+                 if (previousProcess != null && !(currentProcess.ProcessSequence == cuttingsequence.Sequence + 1) && type != 1)
+                 {
+                     Console.WriteLine("Current Process in last third block" + (currentProcess.ProcessId));
+                     currentProcess.InitialTotalQuantity = previousProcess.CompletedTotalQuantity;
+                     currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity - currentProcess.WIPTotalQuantity - currentProcess.CompletedTotalQuantity;
+                     currentProcess.RemainingCatchNo = previousProcess.CompletedCount - currentProcess.WIPCount - currentProcess.CompletedCount;
+                     currentProcess.TotalCatchNo = previousProcess.CompletedCount;
+                 }
+                 else if ((type == 1 && previousProcess != null) && !(currentProcess.ProcessSequence == cuttingsequence.Sequence + 1 && type == 1) && currentProcess.ProcessSequence > cuttingsequence.Sequence + 1)
+                 {
+                     Console.WriteLine("Current Process in second last" + (currentProcess.ProcessId));
+                     Console.WriteLine("Previous Process in second last" + (previousProcess.ProcessId));
+                     currentProcess.InitialTotalQuantity = previousProcess.CompletedTotalQuantity;
+                     currentProcess.CompletedTotalQuantity /= (noofseries ?? 1);
+                     currentProcess.WIPTotalQuantity /= (noofseries ?? 1);
+                     currentProcess.CompletedCount /= (noofseries ?? 1);
+                     currentProcess.WIPCount /= (noofseries ?? 1);
+                     // Console.WriteLine("Current Process" + (currentProcess.CompletedTotalQuantity));
+                     currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity - currentProcess.WIPTotalQuantity - currentProcess.CompletedTotalQuantity;
+                     currentProcess.RemainingCatchNo = previousProcess.CompletedCount - currentProcess.WIPCount - currentProcess.CompletedCount;
+                     currentProcess.TotalCatchNo = previousProcess.CompletedCount;
+                     //Console.WriteLine("Current Process" + (currentProcess.TotalCatchNo));
+
+                 }
+                 else if ((type == 1 && previousProcess != null) && !(currentProcess.ProcessSequence == cuttingsequence.Sequence + 1 && type == 1) && currentProcess.ProcessSequence < cuttingsequence.Sequence + 1)
+                 {
+                     Console.WriteLine("Current Process in last block" + (currentProcess.ProcessId));
+                     currentProcess.InitialTotalQuantity = previousProcess.CompletedTotalQuantity;
+                     currentProcess.RemainingQuantity = currentProcess.InitialTotalQuantity - currentProcess.WIPTotalQuantity - currentProcess.CompletedTotalQuantity;
+                     currentProcess.RemainingCatchNo = previousProcess.CompletedCount - currentProcess.WIPCount - currentProcess.CompletedCount;
+                     currentProcess.TotalCatchNo = previousProcess.CompletedCount;
+                 }
+                 else
+                 {
+                 }
+             }
+
+             return Ok(finalizedProcessCounts);
+         }*/
 
 
 
