@@ -302,98 +302,105 @@ namespace ERPAPI.Controllers
 
         [HttpGet("SearchInQpMaster")]
         public async Task<IActionResult> SearchInQpMaster(
-
-      [FromQuery] string search,
-      [FromQuery] int? groupId, // Add groupId as a nullable int
-      [FromQuery] string? examTypeId, // Add examTypeId as a nullable int
-      [FromQuery] int page = 1,
-      [FromQuery] int pageSize = 5)
-
-
+           [FromQuery] string search,
+           [FromQuery] int? groupId,
+           [FromQuery] string? examTypeId,
+           [FromQuery] int page = 1,
+           [FromQuery] int pageSize = 5)
         {
             if (string.IsNullOrWhiteSpace(search))
             {
                 return BadRequest("Search query cannot be null or empty.");
             }
-            var parsedExamTypeIds = !string.IsNullOrWhiteSpace(examTypeId)
-    ? examTypeId.Split(',').Select(id => int.TryParse(id, out var parsed) ? parsed : (int?)null)
-        .Where(id => id.HasValue)
-        .Select(id => id.Value)
-        .ToList()
-    : new List<int>();
 
-            // Get the list of QPIds from QuantitySheet table
+            var parsedExamTypeIds = !string.IsNullOrWhiteSpace(examTypeId)
+                ? examTypeId.Split(',')
+                    .Select(id => int.TryParse(id, out var parsed) ? parsed : (int?)null)
+                    .Where(id => id.HasValue)
+                    .Select(id => id.Value)
+                    .ToList()
+                : new List<int>();
+
             var existingQPIds = await _context.QuantitySheets
                 .Select(qs => qs.QPId)
                 .ToListAsync();
 
-            var query = (
+            var baseQuery = from qp in _context.QpMasters
+                            join crs in _context.Courses on qp.CourseId equals crs.CourseId into crsJoin
+                            from crs in crsJoin.DefaultIfEmpty()
+                            join et in _context.ExamTypes on qp.ExamTypeId equals et.ExamTypeId into etJoin
+                            from et in etJoin.DefaultIfEmpty()
+                            join sn in _context.Subjects on qp.SubjectId equals sn.SubjectId into snJoin
+                            from sn in snJoin.DefaultIfEmpty()
+                            where (qp.NEPCode.Contains(search) ||
+                                   qp.UniqueCode.Contains(search) ||
+                                   qp.PaperNumber.Contains(search) ||
+                                   crs.CourseName.Contains(search) ||
+                                   qp.PaperTitle.Contains(search)) &&
+                                  (!parsedExamTypeIds.Any() || (qp.ExamTypeId.HasValue && parsedExamTypeIds.Contains(qp.ExamTypeId.Value))) &&
+                                  (!groupId.HasValue || qp.GroupId == groupId) &&
+                                  !existingQPIds.Contains(qp.QPMasterId)
+                            select new
+                            {
+                                qp.QPMasterId,
+                                qp.NEPCode,
+                                qp.UniqueCode,
+                                qp.PaperTitle,
+                                qp.CourseId,
+                                CourseName = crs.CourseName,
+                                qp.PaperNumber,
+                                qp.Duration,
+                                qp.LanguageId,
+                                qp.ExamTypeId,
+                                qp.SubjectId,
+                                ExamTypeName = et.TypeName,
+                                SubjectName = sn.SubjectName,
+                                qp.MaxMarks,
+                            };
 
-            from qp in _context.QpMasters
-            join crs in _context.Courses on qp.CourseId equals crs.CourseId into crsJoin
-            from crs in crsJoin.DefaultIfEmpty()
-            join et in _context.ExamTypes on qp.ExamTypeId equals et.ExamTypeId into etJoin
-            from et in etJoin.DefaultIfEmpty()
-            join sn in _context.Subjects on qp.SubjectId equals sn.SubjectId into snJoin
-            from sn in snJoin.DefaultIfEmpty()
-            where (qp.NEPCode.Contains(search) ||
-            qp.UniqueCode.Contains(search) ||
-            qp.PaperNumber.Contains(search) ||
-            crs.CourseName.Contains(search) ||
-(!parsedExamTypeIds.Any() || (qp.ExamTypeId.HasValue && parsedExamTypeIds.Contains(qp.ExamTypeId.Value)))
-&&
-            qp.PaperTitle.Contains(search)) &&
-        (!groupId.HasValue || qp.GroupId == groupId) &&
-          !existingQPIds.Contains(qp.QPMasterId)
-            select new
-            {
-                qp.QPMasterId,
-                qp.NEPCode,
-                qp.UniqueCode,//added by roy
-                qp.PaperTitle,
-                qp.CourseId,
-                CourseName = crs.CourseName,
-                qp.PaperNumber,
-                qp.Duration,
-                qp.LanguageId,  // Array of Language IDs
-                qp.ExamTypeId,
-                qp.SubjectId,
-                ExamTypeName = et.TypeName,
-                SubjectName = sn.SubjectName,
-                qp.MaxMarks,
-            }
-);
+            // Count before pagination
+            var totalCount = await baseQuery.CountAsync();
 
+            // Apply pagination
+            var paginatedQuery = await baseQuery
+                .AsNoTracking()
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
 
-            var result = await query.AsNoTracking().ToListAsync();
-
-            // 🔹 Fetch all language names into a dictionary
             var languageDict = await _context.Languages
                 .ToDictionaryAsync(l => l.LanguageId, l => l.Languages);
 
-            var finalResult = result.Select(qp => new
+            var finalResult = paginatedQuery.Select(qp => new
             {
                 qp.QPMasterId,
                 qp.NEPCode,
-                qp.UniqueCode,//added by roy
+                qp.UniqueCode,
                 qp.PaperTitle,
                 qp.CourseId,
                 qp.CourseName,
                 qp.SubjectId,
                 qp.PaperNumber,
                 qp.Duration,
-                LanguageIds = qp.LanguageId,  // Keep Language ID array
+                LanguageIds = qp.LanguageId,
                 LanguageNames = qp.LanguageId != null
                     ? qp.LanguageId.Select(id => languageDict.ContainsKey(id) ? languageDict[id] : null).Where(name => name != null).ToList()
-                    : new List<string>(),  // Convert IDs to Names
+                    : new List<string>(),
                 qp.ExamTypeId,
                 qp.ExamTypeName,
                 qp.SubjectName,
                 qp.MaxMarks,
             }).ToList();
 
-            return Ok(finalResult);
+            return Ok(new
+            {
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize,
+                Data = finalResult
+            });
         }
+
 
 
 
@@ -428,6 +435,57 @@ namespace ERPAPI.Controllers
                 return StatusCode(500, "Internal server error.");
             }
         }
+
+        [HttpGet("grouped-quantitysheet-by-project")]
+        public async Task<IActionResult> GetGroupedQuantitySheetByProject([FromQuery] int projectId)
+        {
+            try
+            {
+                if (projectId <= 0)
+                    return BadRequest("Invalid projectId.");
+
+                // Get the requested project
+                var project = await _context.Projects
+                    .FirstOrDefaultAsync(p => p.ProjectId == projectId);
+
+                if (project == null)
+                    return NotFound("Project not found.");
+
+                // Fetch QuantitySheets for the given project
+                var quantitySheets = await _context.QuantitySheets
+                    .Where(q => q.ProjectId == projectId)
+                    .ToListAsync();
+
+                // Prepare grouped result
+                var result = quantitySheets
+                    .GroupBy(q => new { q.ProjectId, q.CourseId })
+                    .Select(g => new
+                    {
+                        GroupId = project.GroupId,
+                        ProjectId = g.Key.ProjectId,
+                        CourseId = g.Key.CourseId,
+                        //TotalQuantity = g.Sum(x => x.Quantity),
+                        //Count = g.Count(),
+                        TypeId = project.TypeId,
+                        PaperCount = _context.QpMasters
+                            .Count(qp => qp.GroupId == project.GroupId && qp.CourseId == g.Key.CourseId),
+                        //NoOfSeries = project.TypeId == 1 ? project.NoOfSeries : null,
+                        Count = (project.TypeId == 1 && project.NoOfSeries.HasValue && project.NoOfSeries.Value > 0)
+                            ? (int?)Math.Ceiling((double)g.Count() / project.NoOfSeries.Value)
+                            : null
+                    })
+                    .ToList();
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, "Internal server error: " + ex.Message);
+            }
+        }
+
+
+
 
     }
 }

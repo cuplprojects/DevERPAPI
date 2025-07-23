@@ -18,6 +18,67 @@ namespace ERPAPI.Controllers
             _context = context;
         }
 
+        /* [HttpGet("UnderProduction")]
+         public async Task<IActionResult> GetUnderProduction()
+         {
+             // Step 1: Fetch all required data from the database
+             var getProject = await _context.Projects
+                 .Select(p => new { p.ProjectId, p.Name, p.GroupId, p.TypeId })
+                 .ToListAsync();
+
+             var getdistinctlotsofproject = await _context.QuantitySheets
+                 .Where(q => q.Status == 1)
+                 .Select(q => new { q.LotNo, q.ProjectId, q.ExamDate, q.QuantitySheetId,q.Quantity })
+                 .Distinct()
+                 .ToListAsync();
+
+
+
+             var getdispatchedlots = await _context.Dispatch
+                 .Select(d => new { d.LotNo, d.ProjectId })
+                 .ToListAsync();
+             var dispatchedLotKeys = new HashSet<string>(
+       getdispatchedlots.Select(d => $"{d.ProjectId}|{d.LotNo}")
+   );
+
+             var quantitySheetGroups = getdistinctlotsofproject
+                 .GroupBy(q => new { q.LotNo, q.ProjectId })
+                 .ToDictionary(
+                   g => $"{g.Key.ProjectId}|{g.Key.LotNo}",
+                     g => new {
+                         TotalCatchNo = g.Select(q => q.QuantitySheetId).Count(),
+                         TotalQuantity = g.Sum(q => q.Quantity),
+                         FromDate = g.Min(q => DateTime.TryParse(q.ExamDate, out var d) ? d : DateTime.MinValue),
+                         ToDate = g.Max(q => DateTime.TryParse(q.ExamDate, out var d) ? d : DateTime.MinValue)
+                     }
+                 );
+
+
+
+             // Step 3: Perform joins and calculate result in-memory
+             var underProduction = (from project in getProject
+                                    from kvp in quantitySheetGroups
+                                    let keyParts = kvp.Key.Split(new[] { '|' }, StringSplitOptions.None)
+                                    let projectId = int.Parse(keyParts[0])
+                                    let lotNo = keyParts[1]
+                                    where project.ProjectId == projectId && !dispatchedLotKeys.Contains(kvp.Key)
+                                    select new
+                                    {
+                                        project.ProjectId,
+                                        project.Name,
+                                        project.GroupId,
+                                        FromDate = kvp.Value.FromDate,
+                                        ToDate = kvp.Value.ToDate,
+                                        project.TypeId,
+                                        LotNo =lotNo,
+                                        TotalCatchNo = kvp.Value.TotalCatchNo,
+                                        TotalQuantity = kvp.Value.TotalQuantity
+                                    }).ToList();
+
+             return Ok(underProduction);
+         }
+ */
+
         [HttpGet("UnderProduction")]
         public async Task<IActionResult> GetUnderProduction()
         {
@@ -2338,16 +2399,20 @@ namespace ERPAPI.Controllers
 
         [HttpGet("User-Wise")]
         public async Task<IActionResult> GetDailyReports(
-int userId, // REQUIRED now
-string date = null,
-string? startDate = null,
-string? endDate = null,
-int? groupId = null,
-int page = 1,
-int pageSize = 10)
+          int userId,
+          string date = null,
+          string? startDate = null,
+          string? endDate = null,
+          int? groupId = null,
+          int? projectId = null,
+          int page = 1,
+          int pageSize = 10)
         {
             try
             {
+                if (userId <= 0)
+                    return BadRequest("userId is required and must be greater than 0.");
+
                 DateTime? parsedDate = null;
                 DateTime? parsedStartDate = null;
                 DateTime? parsedEndDate = null;
@@ -2418,113 +2483,80 @@ int pageSize = 10)
                             joined.p,
                             Group = g
                         })
-                    .Where(r => !groupId.HasValue || r.p.GroupId == groupId.Value)
+                    .Where(r =>
+                        (!groupId.HasValue || r.p.GroupId == groupId.Value) &&
+                        (!projectId.HasValue || r.p.ProjectId == projectId.Value))
                     .Select(r => new
                     {
-                        r.el,
-                        r.t,
-                        r.qs,
-                        r.p,
-                        GroupName = r.Group.Name
+                        GroupId = r.p.GroupId,
+                        GroupName = r.Group.Name,
+                        ProjectId = r.p.ProjectId,
+                        ProjectName = r.p.Name,
+                        TypeId = r.p.TypeId,
+                        Quantity = r.qs.Quantity,
+                        ProcessId = r.t.ProcessId,
+                        LotNo = r.t.LotNo
                     });
 
                 var results = await joinedData.ToListAsync();
 
-                var teamIds = results
-                    .Where(r => r.t.TeamId != null)
-                    .SelectMany(r => r.t.TeamId)
-                    .Distinct()
-                    .ToList();
+                // ✅ Return LotNo-wise summary if projectId is provided
+                if (projectId.HasValue)
+                {
+                    var lotWiseSummary = results
+                        .GroupBy(r => r.LotNo)
+                        .Select(g => new
+                        {
+                            LotNo = g.Key,
+                            TotalCatchCount = g.Count(),
+                            QuantitySum = g.Sum(x => x.Quantity),
+                            ProcessIds = g.Select(x => x.ProcessId).Where(p => p != null).Distinct().ToList()
+                        })
+                        .OrderBy(x => x.LotNo)
+                        .ToList();
 
-                var teamUserMap = await _context.Teams
-                    .Where(t => teamIds.Contains(t.TeamId))
-                    .ToDictionaryAsync(t => t.TeamId, t => t.UserIds);
+                    return Ok(new { LotNoWiseSummary = lotWiseSummary });
+                }
 
-                var allUserIds = teamUserMap.Values.SelectMany(u => u).Distinct().ToList();
+                // ✅ Return Group-wise summary if no groupId is provided
+                if (!groupId.HasValue)
+                {
+                    var groupSummary = results
+                        .GroupBy(r => new { r.GroupId, r.GroupName })
+                        .Select(g => new
+                        {
+                            g.Key.GroupId,
+                            g.Key.GroupName,
+                            CatchCountInPaper = g.Count(x => x.TypeId == 1),
+                            QuantitySumInPaper = g.Where(x => x.TypeId == 1).Sum(x => x.Quantity),
+                            CatchCountInBooklet = g.Count(x => x.TypeId == 2),
+                            QuantitySumInBooklet = g.Where(x => x.TypeId == 2).Sum(x => x.Quantity),
+                            ProcessIds = g.Select(x => x.ProcessId).Where(p => p != null).Distinct().ToList()
+                        })
+                        .ToList();
 
-                var userMap = await _context.Users
-                    .Where(u => allUserIds.Contains(u.UserId))
-                    .ToDictionaryAsync(u => u.UserId, u => u.UserName);
+                    return Ok(new { GroupWiseSummary = groupSummary });
+                }
 
-                var eventTriggeredByIds = results.Select(r => r.el.EventTriggeredBy).Distinct().ToList();
+                // ✅ Return Project-wise summary if groupId is provided
+                var filtered = results.Where(r => r.GroupId == groupId.Value).ToList();
 
-                var triggeredByMap = await _context.Users
-                    .Where(u => eventTriggeredByIds.Contains(u.UserId))
-                    .ToDictionaryAsync(u => u.UserId, u => u.UserName);
-
-                var transactionIds = results.Select(r => r.t.TransactionId).Distinct().ToList();
-
-                var eventLogsPerTransaction = await _context.EventLogs
-                    .Where(el => transactionIds.Contains(el.TransactionId.Value))
-                    .GroupBy(el => el.TransactionId.Value)
+                var projectSummary = filtered
+                    .GroupBy(r => new { r.ProjectId, r.ProjectName, r.TypeId })
                     .Select(g => new
                     {
-                        TransactionId = g.Key,
-                        StartTime = g.Min(el => el.LoggedAT),
-                        EndTime = g.Max(el => el.LoggedAT)
-                    })
-                    .ToListAsync();
-
-                var eventLogMap = eventLogsPerTransaction.ToDictionary(e => e.TransactionId, e => new { StartTime = (DateTime?)e.StartTime, EndTime = (DateTime?)e.EndTime });
-
-                var pagedResults = results
-                    .Skip((page - 1) * pageSize)
-                    .Take(pageSize)
-                    .ToList();
-
-                var transactionSummaries = pagedResults
-                    .GroupBy(r => triggeredByMap.ContainsKey(r.el.EventTriggeredBy)
-                        ? triggeredByMap[r.el.EventTriggeredBy]
-                        : "Unknown")
-                    .Select(group => new
-                    {
-                        Supervisor = group.Key,
-                        Transactions = group.Select(r =>
-                        {
-                            var userIds = r.t.TeamId != null
-                                ? r.t.TeamId
-                                    .Where(tid => teamUserMap.ContainsKey(tid))
-                                    .SelectMany(tid => teamUserMap[tid])
-                                    .Distinct()
-                                    .ToList()
-                                : new List<int>();
-
-                            var userNames = userIds
-                                .Where(uid => userMap.ContainsKey(uid))
-                                .Select(uid => userMap[uid])
-                                .ToList();
-
-                            var startEndTime = eventLogMap.ContainsKey(r.t.TransactionId)
-                                ? eventLogMap[r.t.TransactionId]
-                                : new { StartTime = (DateTime?)null, EndTime = (DateTime?)null };
-
-                            return new
-                            {
-                                TransactionId = r.t.TransactionId,
-                                ProjectName = r.p.Name,
-                                QuantitySheetId = r.t.QuantitysheetId,
-                                ZoneId = r.t.ZoneId,
-                                CatchNo = r.qs.CatchNo,
-                                GroupName = r.GroupName,
-                                StartTime = startEndTime.StartTime,
-                                EndTime = startEndTime.EndTime,
-                                ProcessId = r.t.ProcessId,
-                                Quantity = r.qs.Quantity,
-                                MachineId = r.t.MachineId,
-                                Lot = r.t.LotNo,
-                                StatusCode = r.t.Status,
-                                TeamMembersNames = userNames
-                            };
-                        }).ToList()
+                        g.Key.ProjectId,
+                        g.Key.ProjectName,
+                        g.Key.TypeId,
+                        CatchCountInPaper = g.Key.TypeId == 1 ? g.Count() : 0,
+                        QuantitySumInPaper = g.Key.TypeId == 1 ? g.Sum(x => x.Quantity) : 0,
+                        CatchCountInBooklet = g.Key.TypeId == 2 ? g.Count() : 0,
+                        QuantitySumInBooklet = g.Key.TypeId == 2 ? g.Sum(x => x.Quantity) : 0,
+                        ProcessIds = g.Select(x => x.ProcessId).Where(p => p != null).Distinct().ToList()
                     })
                     .ToList();
 
-                return Ok(new
-                {
-                    UserTransactionDetails = transactionSummaries,
-                    CurrentPage = page,
-                    PageSize = pageSize
-                });
+                return Ok(new { ProjectWiseSummary = projectSummary });
             }
             catch (Exception ex)
             {
@@ -2533,13 +2565,17 @@ int pageSize = 10)
         }
 
 
+
+
+
+
         [HttpGet("User-Wise-Summary")]
         public async Task<IActionResult> GetUserWiseSummary(
-        int? userId, // Optional
-        string date = null,
-        string startDate = null,
-        string endDate = null,
-        int? groupId = null)
+     int? userId,
+     string date = null,
+     string startDate = null,
+     string endDate = null,
+     int? groupId = null)
         {
             try
             {
@@ -2610,56 +2646,58 @@ int pageSize = 10)
                         g => g.Id,
                         (joined, g) => new
                         {
-                            joined.el,
-                            joined.t,
-                            joined.qs,
-                            joined.p,
-                            Group = g
+                            Event = joined.el,
+                            Transaction = joined.t,
+                            Quantity = joined.qs.Quantity,
+                            ProjectId = joined.p.ProjectId,
+                            GroupId = joined.p.GroupId,
+                            LotNo = joined.t.LotNo
                         })
-                    .Where(r => !groupId.HasValue || r.p.GroupId == groupId.Value)
+                    .Where(r => !groupId.HasValue || r.GroupId == groupId.Value)
                     .Select(r => new
                     {
-                        r.el,
-                        r.t,
-                        r.qs,
-                        r.p,
-                        GroupName = r.Group.Name,
-                        GroupId = r.p.GroupId
+                        r.Event.EventTriggeredBy,
+                        r.Quantity,
+                        r.ProjectId,
+                        r.GroupId,
+                        r.LotNo
                     });
 
                 var results = await joinedData.ToListAsync();
 
-                var eventTriggeredByIds = results.Select(r => r.el.EventTriggeredBy).Distinct().ToList();
+                var eventTriggeredByIds = results.Select(r => r.EventTriggeredBy).Distinct().ToList();
 
+                // ✅ Prevent EF from selecting LocationId or other unwanted columns
                 var triggeredByMap = await _context.Users
                     .Where(u => eventTriggeredByIds.Contains(u.UserId))
+                    .Select(u => new { u.UserId, u.UserName }) // ✅ Only fetch required fields
                     .ToDictionaryAsync(u => u.UserId, u => u.UserName);
 
                 var summary = results
-                    .GroupBy(r => triggeredByMap.ContainsKey(r.el.EventTriggeredBy)
-                        ? triggeredByMap[r.el.EventTriggeredBy]
+                    .GroupBy(r => triggeredByMap.ContainsKey(r.EventTriggeredBy)
+                        ? triggeredByMap[r.EventTriggeredBy]
                         : "Unknown")
                     .Select(group => new
                     {
                         Supervisor = group.Key,
                         CatchCount = group.Count(),
-                        TotalQuantity = group.Sum(r => r.qs.Quantity), // Sum of Quantity
-                        ProcessIds = group.Select(r => r.t.ProcessId).Distinct().ToArray(),
-                        ProjectIds = group.Select(r => r.t.ProjectId).Distinct().ToArray(),
-                        GroupIds = group.Select(r => r.GroupId).Distinct().ToArray()
+                        TotalQuantity = group.Sum(r => r.Quantity),
+                        CountOfGroupIds = group.Select(r => r.GroupId).Distinct().Count(),
+                        CountOfProjectIds = group.Select(r => r.ProjectId).Distinct().Count(),
+                        CountOfLotNo = group.Select(r => r.LotNo).Distinct().Count()
                     })
                     .ToList();
 
-                return Ok(new
-                {
-                    UserWiseSummary = summary
-                });
+                return Ok(new { UserWiseSummary = summary });
             }
             catch (Exception ex)
             {
                 return StatusCode(500, new { message = "An error occurred", error = ex.Message });
             }
         }
+
+
+
 
 
     }

@@ -88,13 +88,215 @@ namespace ERPAPI.Controllers
 
 
 
+        /*        [HttpGet("GetProjectTransactionsDataOld")]
+                public async Task<ActionResult<IEnumerable<object>>> GetProjectTransactionsDataOld(int projectId, int processId)
+                {
+                    // Fetch quantity sheet data
+                    var quantitySheetData = await _context.QuantitySheets
+                        .Where(q => q.ProjectId == projectId && q.MSSStatus == 3 && q.StopCatch == 0)
+                        .ToListAsync();
+
+                    // Fetch transaction data and parse alarm messages if needed
+                    var transactions = await (from t in _context.Transaction
+                                              where t.ProjectId == projectId && t.ProcessId == processId
+                                              select new
+                                              {
+                                                  t.TransactionId,
+                                                  t.AlarmId,
+                                                  t.ZoneId,
+                                                  t.QuantitysheetId,
+                                                  t.TeamId,
+                                                  t.Remarks,
+                                                  t.LotNo,
+                                                  t.InterimQuantity,
+                                                  t.ProcessId,
+                                                  t.VoiceRecording,
+                                                  t.Status,
+                                                  t.MachineId
+                                              }).ToListAsync();
+
+                    // Fetch alarm messages
+                    var alarms = await _context.Alarm.ToListAsync();
+
+                    // Fetch project details
+                    var project = await _context.Projects.FirstOrDefaultAsync(p => p.ProjectId == projectId);
+
+                    // Fetch users for all team members in advance to minimize the number of queries
+                    var allUsers = await _context.Users.ToListAsync();
+                    var allZone = await _context.Zone.ToListAsync();
+                    var allMachine = await _context.Machine.ToListAsync();
+                    var abcd = await _context.ABCD
+                                   .Where(p => p.GroupId == project.GroupId)
+                                   .FirstOrDefaultAsync();
+                    var subjects = await _context.Subjects.ToDictionaryAsync(s => s.SubjectId, s => s.SubjectName);
+                    var courses = await _context.Courses.ToDictionaryAsync(c => c.CourseId, c => c.CourseName);
+                    var sessions = await _context.Sessions.ToDictionaryAsync(s => s.SessionId, s => s.session);
+                    var languageIds = quantitySheetData
+                   .SelectMany(q => q.LanguageId) // Assuming LanguageId is a List<int>
+                   .Distinct() // Get distinct LanguageIds
+                   .ToList();
+
+                    // Step 3: Fetch Languages based on the LanguageIds
+                    var languages = await _context.Languages
+                        .Where(l => languageIds.Contains(l.LanguageId))
+                        .Select(l => new { l.LanguageId, l.Languages }) // Adjust the property names as needed
+                        .ToListAsync();
+                    // Map transactions with their alarm messages and usernames
+                    var transactionsWithAlarms = transactions.Select(t =>
+                    {
+                        var parsedAlarmId = TryParseAlarmId(t.AlarmId);
+                        var alarm = parsedAlarmId is int parsedId
+                            ? alarms.FirstOrDefault(a => a.AlarmId == parsedId)
+                            : null;
+                        Console.WriteLine("AlarmId: " + t.AlarmId + " Parsed: " + alarm);
+
+                        // Get the usernames for each userId in the TeamId array
+                        var userNames = allUsers
+                            .Where(u => t.TeamId.Contains(u.UserId))
+                            .Select(u => u.FirstName + " " + u.LastName)
+                            .ToList();
+
+                        var zone = allZone.FirstOrDefault(z => z.ZoneId == t.ZoneId);
+                        var zoneNo = zone != null ? zone.ZoneNo : null;
+
+                        var machine = allMachine.FirstOrDefault(z => z.MachineId == t.MachineId);
+                        var machinename = machine != null ? machine.MachineName : null;
+
+                        return new
+                        {
+                            t.TransactionId,
+                            AlarmId = t.AlarmId,
+                            ZoneId = t.ZoneId,
+                            zoneNo = zoneNo,
+                            machinename = machinename,
+                            QuantitysheetId = t.QuantitysheetId,
+                            TeamId = t.TeamId,
+                            Remarks = t.Remarks,
+                            LotNo = t.LotNo,
+                            TeamUserNames = userNames,  // Include the usernames
+                            InterimQuantity = t.InterimQuantity,
+                            ProcessId = t.ProcessId,
+                            VoiceRecording = t.VoiceRecording,
+                            Status = t.Status,
+                            MachineId = t.MachineId,
+                            AlarmMessage = alarm != null ? alarm.Message : t.AlarmId, // Handle null case for alarms
+                        };
+                    }).ToList();
+
+                    // Apply the logic for SeriesName from Project (using Project.SeriesName)
+                    var quantitySheetDataWithSeriesName = quantitySheetData
+                        .GroupBy(q => q.CatchNo)  // Group by CatchNo for SeriesName assignment
+                        .Select(group =>
+                        {
+                            var seriesName = project?.SeriesName ?? "";  // Get the SeriesName from the project
+
+                            // Assign SeriesName based on the group
+                            var quantitySheetsWithSeriesName = group.Select((q, index) =>
+                            {
+                                var seriesLetter = index < seriesName.Length ? seriesName[index].ToString() : ""; // Use SeriesName from project
+                                return new
+                                {
+                                    q.QuantitySheetId,
+                                    q.ProjectId,
+                                    q.LotNo,
+                                    q.CatchNo,
+                                    q.PaperTitle,
+                                    q.ExamDate,
+                                    q.ExamTime,
+                                    q.CourseId,
+                                    q.SubjectId,
+                                    q.InnerEnvelope,
+                                    q.OuterEnvelope,
+                                    q.Quantity,
+                                    q.Pages,
+                                    q.PercentageCatch,
+                                    q.TTFStatus,
+                                    q.MSSStatus,
+                                    SeriesName = seriesLetter,  // Assign the SeriesName here
+                                    ProcessIds = q.ProcessId,   // Assuming ProcessIds is a list, map it directly
+                                };
+                            }).ToList();
+
+                            // Return the group with the SeriesName applied
+                            return new
+                            {
+                                CatchNo = group.Key,  // The CatchNo for this group
+                                QuantitySheets = quantitySheetsWithSeriesName
+                            };
+                        })
+                        .ToList();
+
+                    // Flatten the grouped data into a single list
+                    var flattenedQuantitySheetData = quantitySheetDataWithSeriesName
+                        .SelectMany(group => group.QuantitySheets)
+                        .ToList();
+
+                    // Combine QuantitySheet and Transaction data in a structured response
+                    var responseData = flattenedQuantitySheetData.Select(q =>
+                    {
+                        return new
+                        {
+                            q.QuantitySheetId,
+                            q.ProjectId,
+                            q.LotNo,
+                            q.CatchNo,
+                            q.PaperTitle,
+                            q.ExamDate,
+                            q.ExamTime,
+                            q.CourseId,
+                            CourseName = _context.Courses
+                                .FirstOrDefault(c => c.CourseId == q.CourseId)?.CourseName,
+                            q.SubjectId,
+                            SubjectName = _context.Subjects
+                                .FirstOrDefault(s => s.SubjectId == q.SubjectId)?.SubjectName,
+                            A = abcd != null ? ResolveTemplate(abcd.A, q, project, subjects, courses, sessions, abcd.SessionFormat) : null,
+                            B = abcd != null ? GetPropertyValue(q, abcd.B, subjects, courses, sessions) : null,
+                            C = abcd != null ? GetPropertyValue(q, abcd.C, subjects, courses, sessions) : null,
+                            D = abcd != null ? GetPropertyValue(q, abcd.D, subjects, courses, sessions) : null,
+                            q.Pages,
+                            q.InnerEnvelope,
+                            q.OuterEnvelope,
+                            q.Quantity,
+                            q.PercentageCatch,
+                            q.SeriesName,  // Directly use the SeriesName
+                            q.TTFStatus,
+                            q.MSSStatus,
+                            ProcessIds = q.ProcessIds, // Assuming ProcessIds is a list, map it directly
+                            Transactions = transactionsWithAlarms
+                                .Where(t => t.QuantitysheetId == q.QuantitySheetId) // Only transactions matching the QuantitySheetId
+                                .ToList()
+                        };
+                    }).ToList();
+
+                    return Ok(responseData);
+                }
+        */
+
         [HttpGet("GetProjectTransactionsDataOld")]
         public async Task<ActionResult<IEnumerable<object>>> GetProjectTransactionsDataOld(int projectId, int processId)
         {
             // Fetch quantity sheet data
-            var quantitySheetData = await _context.QuantitySheets
-                .Where(q => q.ProjectId == projectId && q.MSSStatus == 3 && q.StopCatch == 0)
-                .ToListAsync();
+
+            // Check if process with ProcessId == 23 exists for this project
+            var hasProcess = await _context.ProjectProcesses
+                .AnyAsync(p => p.ProjectId == projectId && p.ProcessId == 23);
+
+            // Fetch quantity sheet data based on condition
+            List<QuantitySheet> quantitySheetData;
+            if (hasProcess)
+            {
+                quantitySheetData = await _context.QuantitySheets
+                    .Where(q => q.ProjectId == projectId && q.MSSStatus == 3 && q.StopCatch == 0)
+                    .ToListAsync();
+            }
+            else
+            {
+                quantitySheetData = await _context.QuantitySheets
+                    .Where(q => q.ProjectId == projectId  && q.StopCatch == 0)
+                    .ToListAsync();
+            }
+
+
 
             // Fetch transaction data and parse alarm messages if needed
             var transactions = await (from t in _context.Transaction
@@ -270,7 +472,6 @@ namespace ERPAPI.Controllers
 
             return Ok(responseData);
         }
-
         private string ResolveTemplate(string template, object quantitySheet, Model.Project project,
   Dictionary<int, string> subjects,
   Dictionary<int, string> courses,
