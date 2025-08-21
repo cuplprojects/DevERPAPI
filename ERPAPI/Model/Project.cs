@@ -20,6 +20,7 @@ namespace ERPAPI.Model
         public int SessionId { get; set; }
         public List<int> ExamTypeId { get; set; }
         public List<string>? RequiredField { get; set; }
+        public string? StructureOfPaper { get; set; }
 
     }
 

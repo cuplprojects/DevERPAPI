@@ -1072,6 +1072,7 @@ namespace ERPAPI.Controllers
                 double projectTotalQuantity = 0;
 
                 foreach (var quantitySheet in quantitySheets)
+
                 {
                     if (quantitySheet == null || quantitySheet.LotNo == null)
                     {
