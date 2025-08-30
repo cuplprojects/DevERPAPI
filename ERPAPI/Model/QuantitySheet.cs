@@ -50,6 +50,7 @@ namespace ERPAPI.Model
 
         public string? StructureOfPaper { get; set; }
 
+        public int? TTFMarkAsReceived { get; set; }
 
     }
 
