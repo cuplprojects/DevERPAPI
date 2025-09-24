@@ -255,6 +255,7 @@ public class QuantitySheetController : ControllerBase
         existingSheet.Status = updatedSheet.Status;
         existingSheet.StopCatch = updatedSheet.StopCatch;
         existingSheet.PercentageCatch = updatedSheet.PercentageCatch;
+        existingSheet.TTFMarkAsReceived = updatedSheet.TTFMarkAsReceived;
         
 
 
